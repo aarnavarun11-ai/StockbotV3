@@ -121,6 +121,23 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
 .mv{font-family:var(--mono);font-size:13px;font-weight:600;display:block;}
 .ml2{font-size:10px;color:var(--muted);margin-top:2px;}
 .live-badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:5px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:#34d399;margin-bottom:7px;}
+.timeframe-bar{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;}
+.tf-btn{flex:1;padding:7px 4px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--border2);border-radius:8px;cursor:pointer;text-align:center;transition:all .15s;}
+.tf-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.tf-btn:active{opacity:.8;}
+.tf-info{font-family:var(--mono);font-size:10px;color:var(--muted);padding:0 12px 6px;background:var(--bg2);flex-shrink:0;display:flex;justify-content:space-between;}
+.market-bar{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;}
+.market-bar-label{font-family:var(--mono);font-size:10px;color:var(--muted);margin-right:2px;}
+.mkt-btn{padding:5px 12px;font-family:var(--mono);font-size:11px;font-weight:600;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--muted);cursor:pointer;transition:all .15s;}
+.mkt-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.cross-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:5px;margin-top:5px;font-weight:600;}
+.cross-badge.bull{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:#34d399;}
+.cross-badge.bear{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#f87171;}
+.cross-badge.none{background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);color:#94a3b8;}
+.ma-chart-wrap{margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.ma-chart-label{font-family:var(--mono);font-size:9px;color:var(--muted);padding:5px 8px;display:flex;gap:12px;flex-wrap:wrap;}
+.ma-legend{display:inline-flex;align-items:center;gap:4px;}
+.ma-legend-dot{width:8px;height:3px;border-radius:2px;display:inline-block;}
 .tt{position:relative;cursor:help;}
 .tt:active::after,.tt:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1e293b;color:#e2e8f0;font-family:var(--sans);font-size:12px;line-height:1.5;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);white-space:normal;width:210px;z-index:9999;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5);}
 .typing{display:flex;gap:5px;padding:8px 0;align-items:center;}
@@ -266,21 +283,29 @@ canvas{width:100%!important;flex:1;display:block;}
 
   <div id="content">
     <div class="panel active" id="chat-panel">
+      <!-- MARKET SWITCHER -->
+      <div class="market-bar">
+        <span class="market-bar-label">Market:</span>
+        <button class="mkt-btn active" onclick="setMarket('us')" id="mkt-us">🇺🇸 US</button>
+        <button class="mkt-btn" onclick="setMarket('india')" id="mkt-india">🇮🇳 India</button>
+      </div>
       <div id="chips">
-        <div class="chip" onclick="ask('NVDA')">NVDA</div>
-        <div class="chip" onclick="ask('AAPL')">AAPL</div>
-        <div class="chip" onclick="ask('TSLA')">TSLA</div>
-        <div class="chip" onclick="ask('MSFT')">MSFT</div>
-        <div class="chip" onclick="ask('META')">META</div>
-        <div class="chip" onclick="ask('SPY')">SPY</div>
-        <div class="chip" onclick="ask('AMZN')">AMZN</div>
-        <div class="chip" onclick="ask('GOOGL')">GOOGL</div>
-        <div class="chip" onclick="ask('XLE')">XLE</div>
+        <!-- Chips populated dynamically by setMarket() -->
+      </div>
+      <!-- TIMEFRAME SELECTOR -->
+      <div class="timeframe-bar">
+        <button class="tf-btn active" onclick="setTimeframe('1d','5d')" id="tf-daily">📅 Daily</button>
+        <button class="tf-btn" onclick="setTimeframe('1wk','6mo')" id="tf-weekly">📆 Weekly</button>
+        <button class="tf-btn" onclick="setTimeframe('1mo','2y')" id="tf-monthly">🗓 Monthly</button>
+      </div>
+      <div class="tf-info">
+        <span id="tf-label">Daily bars · 5 days of data</span>
+        <span id="tf-updated" style="color:var(--muted)"></span>
       </div>
       <div id="msgs">
         <div class="msg bot">
           <div class="mlbl">StockAI</div>
-          <div class="bbl">Tap a ticker above or type any stock symbol for live analysis — real price, RSI, MACD, support/resistance, analyst ratings and price targets.<br><br>💡 <em>Tap any metric to see what it means.</em></div>
+          <div class="bbl">Tap a ticker above or type any stock symbol for live analysis — real price, RSI, MACD, MA crossover, analyst ratings and price targets.<br><br>🇺🇸/🇮🇳 Switch between US and Indian markets above.<br><br><span id="market-hint" style="font-family:var(--mono);font-size:11px;color:var(--muted)">US stocks (e.g. NVDA, AAPL, TSLA)</span><br><br>💡 <em>Tap any metric to see what it means.</em></div>
         </div>
       </div>
       <div id="inp-row">
@@ -374,6 +399,27 @@ function promptKeyUpdate() {
 const SKIP=new Set(['FULL','ANALYSIS','THE','FOR','BUY','SELL','HOLD','WHAT','IS','ARE','ABOUT','GIVE','ME','A','AN','AND','OR','OF','TO','IN','ON','AT','DO','HOW','WHY','WHEN','STOCK','PRICE','TELL','SHOULD','I','MY','GET','SHOW','CAN','YOU','ANALYZE']);
 const history=[];
 
+// ── MARKET SWITCHER ──
+const US_CHIPS   = ['NVDA','AAPL','TSLA','MSFT','META','SPY','AMZN','GOOGL','XLE'];
+const INDIA_CHIPS= ['RELIANCE.NS','TCS.NS','INFY.NS','HDFCBANK.NS','WIPRO.NS','TATAMOTORS.NS','SBIN.NS','BAJFINANCE.NS','ITC.NS'];
+let currentMarket = 'us';
+
+function setMarket(mkt){
+  currentMarket = mkt;
+  document.getElementById('mkt-us').classList.toggle('active', mkt==='us');
+  document.getElementById('mkt-india').classList.toggle('active', mkt==='india');
+  const chips = mkt==='us' ? US_CHIPS : INDIA_CHIPS;
+  const container = document.getElementById('chips');
+  container.innerHTML = chips.map(t=>`<div class="chip" onclick="ask('${t}')">${t.replace('.NS','')}</div>`).join('');
+  // Update welcome message hint
+  const hint = mkt==='india' ? 'Indian NSE stocks (e.g. RELIANCE.NS, TCS.NS)' : 'US stocks (e.g. NVDA, AAPL, TSLA)';
+  document.getElementById('market-hint').textContent = hint;
+}
+
+// ── ON-DEMAND DATA: only fetch when user explicitly asks ──
+// (Data is NOT fetched on load — only when send() is called)
+// This is already the case since getLiveData is only called inside callAI
+
 function switchTab(tab){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -385,25 +431,63 @@ function switchTab(tab){
 
 const TIPS={entry:'Best price to open a position — near support level.',tp:'Target sell price for maximum gain — near resistance.',sl:'Exit price if trade goes wrong — limits your loss to ~5%.',rr:'Risk/Reward. 1:2 means risking $1 to potentially make $2.',rsi:'RSI momentum indicator. Above 70 = overbought. Below 30 = oversold.',macd:'MACD trend direction. Bullish = upward momentum building.',ma50:'50-day average price. Price above = short-term uptrend.',ma200:'200-day average price. Most important long-term trend indicator.',sup:'20-day lowest price — floor where buyers step in.',res:'20-day highest price — ceiling where sellers appear.',conf:'How confident the AI is based on how many signals agree.',tx:'Sentiment from Twitter/X posts about this stock.',rd:'Sentiment from Reddit (r/wallstreetbets, r/stocks).',cons:'Wall Street analyst consensus rating.',pt:'Average 12-month price target from professional analysts.'};
 
-async function getLiveData(ticker){
-  const yurl=encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y`);
+// Current timeframe state
+let currentInterval = '1d';
+let currentRange = '5d';
+
+function setTimeframe(interval, range) {
+  currentInterval = interval;
+  currentRange = range;
+  // Update button states
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  const map = {'1d':'tf-daily','1wk':'tf-weekly','1mo':'tf-monthly'};
+  document.getElementById(map[interval])?.classList.add('active');
+  // Update label
+  const labels = {'1d':'Daily bars · 5 days','1wk':'Weekly bars · 6 months','1mo':'Monthly bars · 2 years'};
+  document.getElementById('tf-label').textContent = labels[interval] || '';
+}
+
+async function getLiveData(ticker, interval, range){
+  interval = interval || currentInterval || '1d';
+  range    = range    || currentRange    || '5d';
+  // Always also fetch 1y daily for MA/RSI calculations
+  const yurl     = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`);
+  const yurlCalc = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y`);
   const proxies=[`https://api.allorigins.win/get?url=${yurl}`,`https://corsproxy.io/?${yurl}`,`https://api.codetabs.com/v1/proxy?quest=${yurl}`];
-  let raw=null;
+  const proxies=[`https://api.allorigins.win/get?url=${yurl}`,`https://corsproxy.io/?${yurl}`,`https://api.codetabs.com/v1/proxy?quest=${yurl}`];
+  const proxiesCalc=[`https://api.allorigins.win/get?url=${yurlCalc}`,`https://corsproxy.io/?${yurlCalc}`];
+  let raw=null, rawCalc=null;
   for(const p of proxies){try{const r=await fetch(p,{signal:AbortSignal.timeout(7000)});if(!r.ok)continue;const j=await r.json();raw=j.contents?JSON.parse(j.contents):j;if(raw?.chart?.result?.[0])break;raw=null;}catch{continue;}}
+  // Fetch 1y daily separately for accurate RSI/MACD/MA calculations
+  for(const p of proxiesCalc){try{const r=await fetch(p,{signal:AbortSignal.timeout(7000)});if(!r.ok)continue;const j=await r.json();rawCalc=j.contents?JSON.parse(j.contents):j;if(rawCalc?.chart?.result?.[0])break;rawCalc=null;}catch{continue;}}
   if(!raw)return null;
+  const calcData = rawCalc || raw; // fallback to same data
   try{
     const r=raw.chart.result[0],meta=r.meta;
     const closes=(r.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
     const vols=(r.indicators?.quote?.[0]?.volume||[]).filter(v=>v!=null);
-    if(closes.length<20)return null;
+    // Use 1y daily closes for indicator calculations
+    const calcR = calcData.chart.result[0];
+    const calcCloses=(calcR.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
+    if(closes.length<2)return null;
     const price=meta.regularMarketPrice||closes[closes.length-1];
     const prev=meta.regularMarketPreviousClose||meta.chartPreviousClose||closes[closes.length-2]||price;
     const chg=+(price-prev).toFixed(2),chgPct=+((price-prev)/prev*100).toFixed(2);
     function rsi(arr,n=14){if(arr.length<n+1)return 50;let g=0,l=0;for(let i=arr.length-n;i<arr.length;i++){const d=arr[i]-arr[i-1];d>0?g+=d:l+=Math.abs(d);}const rs=(g/n)/((l/n)||.0001);return+(100-(100/(1+rs))).toFixed(1);}
     function ema(arr,n){const k=2/(n+1);let e=arr[0];for(let i=1;i<arr.length;i++)e=arr[i]*k+e*(1-k);return e;}
-    const ma50=closes.length>=50?+(closes.slice(-50).reduce((a,b)=>a+b)/50).toFixed(2):null;
-    const ma200=closes.length>=200?+(closes.slice(-200).reduce((a,b)=>a+b)/200).toFixed(2):null;
-    return{ticker,price:+price.toFixed(2),prev:+prev.toFixed(2),chg,chgPct,rsi:rsi(closes),macdBull:closes.length>26?ema(closes,12)-ema(closes,26)>0:false,ma50,ma200,vs50:ma50?(price>ma50?'Above':'Below'):null,vs200:ma200?(price>ma200?'Above':'Below'):null,sup:+(Math.min(...closes.slice(-20))).toFixed(2),res:+(Math.max(...closes.slice(-20))).toFixed(2),volRatio:+((vols[vols.length-1]||0)/(vols.slice(-30).reduce((a,b)=>a+b,0)/Math.min(30,vols.length)||1)).toFixed(1),mktCap:meta.marketCap?(meta.marketCap/1e9).toFixed(1)+'B':null};
+    // Indicators use 1y daily data for accuracy
+    const ma50=calcCloses.length>=50?+(calcCloses.slice(-50).reduce((a,b)=>a+b)/50).toFixed(2):null;
+    const ma200=calcCloses.length>=200?+(calcCloses.slice(-200).reduce((a,b)=>a+b)/200).toFixed(2):null;
+    const rsiVal=rsi(calcCloses);
+    const macdBull=calcCloses.length>26?ema(calcCloses,12)-ema(calcCloses,26)>0:false;
+    // Support/resistance from the selected timeframe closes
+    const sup=+(Math.min(...closes.slice(-Math.min(20,closes.length)))).toFixed(2);
+    const res=+(Math.max(...closes.slice(-Math.min(20,closes.length)))).toFixed(2);
+    const avgVol=vols.slice(-30).reduce((a,b)=>a+b,0)/Math.min(30,vols.length)||1;
+    // Timestamps for chart labels
+    const timestamps=(r.timestamp||[]).map(t=>new Date(t*1000));
+    const tfLabel={'1d':'Daily','1wk':'Weekly','1mo':'Monthly'}[interval]||'Daily';
+    return{ticker,price:+price.toFixed(2),prev:+prev.toFixed(2),chg,chgPct,rsi:rsiVal,macdBull,ma50,ma200,vs50:ma50?(price>ma50?'Above':'Below'):null,vs200:ma200?(price>ma200?'Above':'Below'):null,sup,res,volRatio:+((vols[vols.length-1]||0)/avgVol).toFixed(1),mktCap:meta.marketCap?(meta.marketCap/1e9).toFixed(1)+'B':null,closes,timestamps,tfLabel,interval};
   }catch{return null;}
 }
 
@@ -418,8 +502,8 @@ function computeTargets(live){
   return{entry,tp,sl,rr:`1:${rr}`,upside:`+${+(reward/entry*100).toFixed(1)}%`,downside:`-${+(risk/entry*100).toFixed(1)}%`,taOverall:['Strong Sell','Sell','Neutral','Buy','Strong Buy'][bull],trend:vs200==='Above'?(vs50==='Above'?'Uptrend':'Mixed'):'Downtrend',rsiSig:rsiVal>=70?'Overbought':rsiVal<=30?'Oversold':'Neutral',macdNote:macdBull?'Positive histogram (bullish)':'Negative histogram (bearish)',volLabel:volRatio>=1.5?'Above Average':volRatio<0.7?'Below Average':'Average',volStr:`${volRatio}x 30-day avg`};
 }
 
-const SYSTEM=`You are StockAI. Use EXACT numbers from LIVE DATA. Never invent prices. Respond ONLY with raw JSON:
-{"ticker":"X","price":"0","price_change":"0%","analysis":"3-4 sentences explaining what the live indicators mean","signal":"BUY","confidence":70,"sentiment":{"twitter_x":"Bullish","twitter_x_score":65,"twitter_x_note":"note","reddit":"Neutral","reddit_score":55,"reddit_note":"note","overall_social":"Bullish"},"analysts":{"consensus":"Buy","avg_price_target":0,"num_analysts":30,"recent_changes":"recent moves","bull_case":"argument","bear_case":"argument"},"metrics":{"sentiment":"Bullish","volatility":"Medium","timeframe":"Mid-term"}}`;
+const SYSTEM=`You are StockAI. Use EXACT numbers from LIVE DATA. Never invent prices. Tailor your analysis to the timeframe specified in the data (Daily/Weekly/Monthly). Respond ONLY with raw JSON:
+{"ticker":"X","price":"0","price_change":"0%","analysis":"3-4 sentences explaining what the live indicators mean FOR THE SPECIFIED TIMEFRAME — mention if it is daily/weekly/monthly context","signal":"BUY","confidence":70,"sentiment":{"twitter_x":"Bullish","twitter_x_score":65,"twitter_x_note":"note","reddit":"Neutral","reddit_score":55,"reddit_note":"note","overall_social":"Bullish"},"analysts":{"consensus":"Buy","avg_price_target":0,"num_analysts":30,"recent_changes":"recent moves","bull_case":"argument","bear_case":"argument"},"metrics":{"sentiment":"Bullish","volatility":"Medium","timeframe":"Short-term"}}`;
 
 async function callAI(userMsg){
   history.push({role:'user',content:userMsg});
@@ -434,7 +518,10 @@ async function callAI(userMsg){
       setTypingLabel(`Computing indicators for ${ticker} @ $${live.price}...`);
       const t=computeTargets(live);
       liveNumbers={live,t};
-      liveCtx=`\n=== LIVE DATA FOR ${ticker} ===\nprice:"${live.price}"\nprice_change:"${live.chgPct>=0?'+':''}${live.chgPct}%"\nRSI:${live.rsi} (${t.rsiSig})\nMACD:${t.macdNote}\nMA50:${live.ma50?'$'+live.ma50+' '+live.vs50:'N/A'}\nMA200:${live.ma200?'$'+live.ma200+' '+live.vs200:'N/A'}\nSupport:$${live.sup}\nResistance:$${live.res}\nVolume:${t.volStr}\nEntry:$${t.entry} TP:$${t.tp} SL:$${t.sl} RR:${t.rr}\nTA:${t.taOverall} Trend:${t.trend}\n=== END ===`;
+      const tfDesc = {'1d':'Daily timeframe (5 days)','1wk':'Weekly timeframe (6 months)','1mo':'Monthly timeframe (2 years)'}[live.interval]||'Daily';
+      liveCtx=`\n=== LIVE DATA FOR ${ticker} (${tfDesc}) ===\nprice:"${live.price}"\nprice_change:"${live.chgPct>=0?'+':''}${live.chgPct}%"\nTimeframe: ${tfDesc}\nRSI(14):${live.rsi} (${t.rsiSig}) — calculated from 1-year daily data\nMACD:${t.macdNote} — calculated from 1-year daily data\nMA50:${live.ma50?'$'+live.ma50+' '+live.vs50:'N/A'}\nMA200:${live.ma200?'$'+live.ma200+' '+live.vs200:'N/A'}\nSupport (${tfDesc}):$${live.sup}\nResistance (${tfDesc}):$${live.res}\nVolume:${t.volStr}\nEntry:$${t.entry} TP:$${t.tp} SL:$${t.sl} RR:${t.rr}\nTA:${t.taOverall} Trend:${t.trend}\nNote: tailor your analysis to the ${tfDesc} perspective\n=== END ===`;
+      // Update tf info bar
+      const now=new Date();document.getElementById('tf-updated').textContent='Updated '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
     }
   }
   const msgs=trimmed.map((m,i)=>i===trimmed.length-1?{...m,content:m.content+liveCtx}:m);
@@ -467,7 +554,91 @@ function buildCard(d,ln){
   if(d.sentiment){const s=d.sentiment;sentH=`<div class="cs"><div class="cl">🐦 Social Sentiment</div><div class="sentrow"><div class="sentbox tt" data-tip="${TIPS.tx}"><span class="sicon">𝕏</span><div class="sval" style="color:${scc(s.twitter_x_score||50)}">${esc(s.twitter_x||'N/A')}</div><div class="ssub">${esc(s.twitter_x_note||'')}</div><div class="sbar"><div class="sbarf" style="width:${s.twitter_x_score||50}%;background:${scc(s.twitter_x_score||50)}"></div></div></div><div class="sentbox tt" data-tip="${TIPS.rd}"><span class="sicon">🤖</span><div class="sval" style="color:${scc(s.reddit_score||50)}">${esc(s.reddit||'N/A')}</div><div class="ssub">${esc(s.reddit_note||'')}</div><div class="sbar"><div class="sbarf" style="width:${s.reddit_score||50}%;background:${scc(s.reddit_score||50)}"></div></div></div><div class="sentbox"><span class="sicon">📊</span><div class="sval" style="color:${sc(s.overall_social)}">${esc(s.overall_social||'N/A')}</div><div class="ssub">Overall</div></div></div></div>`;}
   if(d.analysts){const a=d.analysts,ac=(a.consensus||'hold').toLowerCase().replace(' ','-');analH=`<div class="cs"><div class="cl">🏦 Wall Street Analysts</div><div class="atop"><span class="apill ${ac} tt" data-tip="${TIPS.cons}">${esc(a.consensus||'N/A')}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${a.num_analysts||'?'} analysts</span><span class="apt tt" data-tip="${TIPS.pt}">Avg PT: $${a.avg_price_target!=null?Number(a.avg_price_target).toFixed(2):'N/A'}</span></div>${a.recent_changes?`<div class="achg">${esc(a.recent_changes)}</div>`:''}<div class="acases">${a.bull_case?`<div class="acase bull"><span class="aclbl">▲ BULL</span>${esc(a.bull_case)}</div>`:''} ${a.bear_case?`<div class="acase bear"><span class="aclbl">▼ BEAR</span>${esc(a.bear_case)}</div>`:''}</div></div>`;}
   const pn=parseFloat(d.price)||0,conf=d.confidence||50;
-  return `<div class="card"><div class="cs"><div class="live-badge">📡 Live Data</div><div class="phero"><span class="pmain">${pn?'$'+pn.toFixed(2):esc(d.price)}</span><span class="${cup?'pup':'pdn'}">${esc(d.price_change)}</span></div><div class="cl">${esc(d.ticker||'')} — Analysis</div><div style="line-height:1.6;font-size:13.5px">${esc(d.analysis)}</div><span class="sig ${sig.toLowerCase()}">${{BUY:'▲',SELL:'▼',HOLD:'◆'}[sig]||'◆'} ${sig}</span></div>${ptH}${taH}${sentH}${analH}<div class="cs"><div class="cl tt" data-tip="${TIPS.conf}">Confidence</div><div class="cbar"><div class="ctrack"><div class="cfill" style="width:${conf}%;background:${cc(conf)}"></div></div><div class="cval" style="color:${cc(conf)}">${conf}%</div></div></div><div class="cs"><div class="cl">Market Snapshot</div><div class="mgrid"><div class="mbox"><span class="mv" style="color:${sc(d.metrics?.sentiment)}">${d.metrics?.sentiment||'N/A'}</span><div class="ml2">Sentiment</div></div><div class="mbox"><span class="mv">${d.metrics?.volatility||'N/A'}</span><div class="ml2">Volatility</div></div><div class="mbox"><span class="mv" style="font-size:11px">${d.metrics?.timeframe||'N/A'}</span><div class="ml2">Timeframe</div></div></div></div></div>`;
+
+  // MA Crossover mini-chart
+  let crossH = '';
+  if (ln && ln.live.closes && ln.live.closes.length >= 100) {
+    const closes = ln.live.closes;
+    // Calculate MA100 and MA50 at each point for crossover detection
+    function sma(arr, n, idx) {
+      if (idx < n-1) return null;
+      return arr.slice(idx-n+1, idx+1).reduce((a,b)=>a+b,0)/n;
+    }
+    const len = closes.length;
+    const ma50arr=[], ma100arr=[];
+    for(let i=0;i<len;i++){
+      ma50arr.push(sma(closes,50,i));
+      ma100arr.push(sma(closes,100,i));
+    }
+    // Find latest crossover
+    let crossType='none', crossDaysAgo=null;
+    for(let i=len-1;i>100;i--){
+      const p50=ma50arr[i], p100=ma100arr[i], p50p=ma50arr[i-1], p100p=ma100arr[i-1];
+      if(!p50||!p100||!p50p||!p100p) continue;
+      if(p50p<=p100p && p50>p100){crossType='bull';crossDaysAgo=len-1-i;break;}
+      if(p50p>=p100p && p50<p100){crossType='bear';crossDaysAgo=len-1-i;break;}
+    }
+    const curMA50=ma50arr[len-1],curMA100=ma100arr[len-1];
+    const crossIcon=crossType==='bull'?'▲ Golden Cross':crossType==='bear'?'▼ Death Cross':'─ No Recent Cross';
+    const crossClass=crossType==='bull'?'bull':crossType==='bear'?'bear':'none';
+    const crossNote=crossDaysAgo!==null?` (${crossDaysAgo} days ago)`:'';
+    // Build mini sparkline canvas
+    const sparkSlice=closes.slice(-60);
+    const ma50Slice=ma50arr.slice(-60);
+    const ma100Slice=ma100arr.slice(-60);
+    crossH=`<div class="cs"><div class="cl">📈 MA Crossover Analysis <span style="color:var(--green);font-size:9px">● REAL DATA</span></div>
+      <span class="cross-badge ${crossClass}" data-tip="MA50 crossing above MA100 = Golden Cross (bullish). Below = Death Cross (bearish).">${crossIcon}${crossNote}</span>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;flex:1;text-align:center;">
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:#f59e0b;display:block;">$${curMA50?curMA50.toFixed(2):'N/A'}</span>
+          <span style="font-size:10px;color:var(--muted)">MA50</span>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;flex:1;text-align:center;">
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:#c4b5fd;display:block;">$${curMA100?curMA100.toFixed(2):'N/A'}</span>
+          <span style="font-size:10px;color:var(--muted)">MA100</span>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;flex:1;text-align:center;">
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${curMA50&&curMA100?(curMA50>curMA100?'#34d399':'#f87171'):'#94a3b8'};display:block;">${curMA50&&curMA100?(curMA50>curMA100?'Above':'Below'):'N/A'}</span>
+          <span style="font-size:10px;color:var(--muted)">MA50 vs MA100</span>
+        </div>
+      </div>
+      <div class="ma-chart-wrap">
+        <canvas id="ma-cross-chart" height="80" style="width:100%;height:80px;display:block;"></canvas>
+        <div class="ma-chart-label">
+          <span class="ma-legend"><span class="ma-legend-dot" style="background:#f59e0b"></span>MA50</span>
+          <span class="ma-legend"><span class="ma-legend-dot" style="background:#c4b5fd"></span>MA100</span>
+          <span class="ma-legend"><span class="ma-legend-dot" style="background:#64748b"></span>Price</span>
+        </div>
+      </div>
+    </div>`;
+    // Draw chart after DOM renders
+    setTimeout(()=>{
+      const cv=document.getElementById('ma-cross-chart');
+      if(!cv)return;
+      cv.width=cv.offsetWidth||300;cv.height=80;
+      const ctx=cv.getContext('2d');
+      const all=[...sparkSlice,...ma50Slice.filter(Boolean),...ma100Slice.filter(Boolean)];
+      const mn=Math.min(...all),mx=Math.max(...all),rng=mx-mn||1;
+      const W=cv.width,H=80,pad=4;
+      const tx=(_,i)=>pad+(i/(sparkSlice.length-1))*(W-pad*2);
+      const ty=v=>H-pad-((v-mn)/rng)*(H-pad*2);
+      ctx.clearRect(0,0,W,H);
+      // Grid
+      ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+      for(let g=0;g<3;g++){const y=pad+(g/2)*(H-pad*2);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+      // Price line
+      ctx.beginPath();ctx.strokeStyle='rgba(100,116,139,.5)';ctx.lineWidth=1;
+      sparkSlice.forEach((v,i)=>i===0?ctx.moveTo(tx(null,i),ty(v)):ctx.lineTo(tx(null,i),ty(v)));ctx.stroke();
+      // MA50 line
+      ctx.beginPath();ctx.strokeStyle='#f59e0b';ctx.lineWidth=1.5;let first50=true;
+      ma50Slice.forEach((v,i)=>{if(v==null)return;first50?ctx.moveTo(tx(null,i),ty(v)):ctx.lineTo(tx(null,i),ty(v));first50=false;});ctx.stroke();
+      // MA100 line
+      ctx.beginPath();ctx.strokeStyle='#c4b5fd';ctx.lineWidth=1.5;let first100=true;
+      ma100Slice.forEach((v,i)=>{if(v==null)return;first100?ctx.moveTo(tx(null,i),ty(v)):ctx.lineTo(tx(null,i),ty(v));first100=false;});ctx.stroke();
+    },100);
+  }
+
+  return `<div class="card"><div class="cs"><div class="live-badge">📡 Live Data</div><div class="phero"><span class="pmain">${pn?'$'+pn.toFixed(2):esc(d.price)}</span><span class="${cup?'pup':'pdn'}">${esc(d.price_change)}</span></div><div class="cl">${esc(d.ticker||'')} — Analysis</div><div style="line-height:1.6;font-size:13.5px">${esc(d.analysis)}</div><span class="sig ${sig.toLowerCase()}">${{BUY:'▲',SELL:'▼',HOLD:'◆'}[sig]||'◆'} ${sig}</span></div>${ptH}${crossH}${taH}${sentH}${analH}<div class="cs"><div class="cl tt" data-tip="${TIPS.conf}">Confidence</div><div class="cbar"><div class="ctrack"><div class="cfill" style="width:${conf}%;background:${cc(conf)}"></div></div><div class="cval" style="color:${cc(conf)}">${conf}%</div></div></div><div class="cs"><div class="cl">Market Snapshot</div><div class="mgrid"><div class="mbox"><span class="mv" style="color:${sc(d.metrics?.sentiment)}">${d.metrics?.sentiment||'N/A'}</span><div class="ml2">Sentiment</div></div><div class="mbox"><span class="mv">${d.metrics?.volatility||'N/A'}</span><div class="ml2">Volatility</div></div><div class="mbox"><span class="mv" style="font-size:11px">${d.metrics?.timeframe||'N/A'}</span><div class="ml2">Timeframe</div></div></div></div></div>`;
 }
 
 function addMsg(role,html){const w=document.getElementById('msgs');const d=document.createElement('div');d.className='msg '+role;d.innerHTML='<div class="mlbl">'+(role==='user'?'You':'StockAI')+'</div><div class="bbl">'+html+'</div>';w.appendChild(d);w.scrollTop=w.scrollHeight;}
@@ -541,6 +712,8 @@ function sLog(type,ticker,price,shares,pnl){
   log.appendChild(d);log.scrollTop=log.scrollHeight;lc++;if(lc>200)log.removeChild(log.firstChild);
 }
 setInterval(simTick,300);
+// Initialize US chips on load
+setMarket('us');
 
 function switchInstallTab(tab){
   document.querySelectorAll('.itab').forEach(t=>t.classList.remove('active'));

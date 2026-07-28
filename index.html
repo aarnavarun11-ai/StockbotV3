@@ -468,20 +468,20 @@ async function getLiveData(ticker) {
     return +(arr.slice(-n).reduce((a,b)=>a+b,0)/n).toFixed(2);
   }
 
-  const ma50  = sma(calcCloses, 50);
+  const ma13  = sma(calcCloses, 13);
   const ma100 = sma(calcCloses, 100);
   const ma200 = sma(calcCloses, 200);
 
-  // MA50/MA100 crossover detection (last 200 days)
+  // MA13/MA100 crossover detection
   let crossType = 'none', crossDays = null;
   const len = calcCloses.length;
   for (let i = len-1; i >= 101; i--) {
-    const s50   = calcCloses.slice(i-49, i+1).reduce((a,b)=>a+b)/50;
+    const s13   = calcCloses.slice(i-12, i+1).reduce((a,b)=>a+b)/13;
     const s100  = calcCloses.slice(i-99, i+1).reduce((a,b)=>a+b)/100;
-    const s50p  = calcCloses.slice(i-50, i).reduce((a,b)=>a+b)/50;
+    const s13p  = calcCloses.slice(i-13, i).reduce((a,b)=>a+b)/13;
     const s100p = calcCloses.slice(i-100, i).reduce((a,b)=>a+b)/100;
-    if (s50p <= s100p && s50 > s100) { crossType='bull'; crossDays=len-1-i; break; }
-    if (s50p >= s100p && s50 < s100) { crossType='bear'; crossDays=len-1-i; break; }
+    if (s13p <= s100p && s13 > s100) { crossType='bull'; crossDays=len-1-i; break; }
+    if (s13p >= s100p && s13 < s100) { crossType='bear'; crossDays=len-1-i; break; }
   }
 
   const useTfCloses = tfCloses.length > 0 ? tfCloses : calcCloses;
@@ -497,8 +497,8 @@ async function getLiveData(ticker) {
   return {
     ticker, price:+price.toFixed(2), prev:+prev.toFixed(2), chg, chgPct,
     rsi:rsi(calcCloses), macdBull:calcCloses.length>26?ema(calcCloses,12)-ema(calcCloses,26)>0:false,
-    ma50, ma100, ma200,
-    vs50:  ma50  ? (price>ma50  ?'Above':'Below') : null,
+    ma13, ma100, ma200,
+    vs13:  ma13  ? (price>ma13  ?'Above':'Below') : null,
     vs100: ma100 ? (price>ma100 ?'Above':'Below') : null,
     vs200: ma200 ? (price>ma200 ?'Above':'Below') : null,
     sup, res, volRatio,
@@ -509,7 +509,7 @@ async function getLiveData(ticker) {
 
 /* ═══════════════ COMPUTE TARGETS ═══════════════ */
 function computeTargets(live) {
-  const { price, sup, res, rsi:rsiVal, macdBull, vs50, vs100, vs200, volRatio } = live;
+  const { price, sup, res, rsi:rsiVal, macdBull, vs13, vs100, vs200, volRatio } = live;
   const entry  = +(price > sup*1.05 ? price*0.99 : price).toFixed(2);
   const sl     = +(entry*0.95).toFixed(2);
   const risk   = entry - sl;
@@ -520,7 +520,7 @@ function computeTargets(live) {
   let bull = 0;
   if (rsiVal>=30&&rsiVal<=60) bull++;
   if (macdBull) bull++;
-  if (vs50==='Above') bull++;
+  if (vs13==='Above') bull++;
   if (vs200==='Above') bull++;
   const taOverall = ['Strong Sell','Sell','Neutral','Buy','Strong Buy'][bull];
   const trend = vs200==='Above' ? (vs50==='Above'?'Uptrend':'Mixed') : 'Downtrend';
@@ -546,7 +546,11 @@ async function callAI(userMsg) {
   const trimmed = chatHistory.slice(-4);
 
   const words  = userMsg.toUpperCase().replace(/[^A-Z.\s]/g,'').split(/\s+/);
-  const ticker = words.find(w => w.length>=1 && w.length<=12 && !SKIP.has(w));
+  let ticker = words.find(w => w.length>=1 && w.length<=12 && !SKIP.has(w));
+  // Auto-add .NS suffix for Indian market if not already present
+  if (ticker && currentMarket === 'india' && !ticker.includes('.')) {
+    ticker = ticker + '.NS';
+  }
 
   let liveNumbers = null, liveCtx = '';
   if (ticker) {
@@ -563,7 +567,7 @@ price_change: "${live.chgPct>=0?'+':''}${live.chgPct}%"
 Timeframe: ${live.tfLabel}
 RSI(14): ${live.rsi} (${t.rsiSig})
 MACD: ${t.macdNote}
-MA50:  ${live.ma50  ? '$'+live.ma50 +' — price is '+live.vs50  : 'N/A'}
+MA13:  ${live.ma13  ? '$'+live.ma13 +' — price is '+live.vs13  : 'N/A'}
 MA100: ${live.ma100 ? '$'+live.ma100+' — price is '+live.vs100 : 'N/A'}
 MA200: ${live.ma200 ? '$'+live.ma200+' — price is '+live.vs200 : 'N/A'}
 MA50/MA100 Cross: ${live.crossType==='bull'?'Golden Cross (bullish)':live.crossType==='bear'?'Death Cross (bearish)':'No recent cross'}${live.crossDays!==null?' — '+live.crossDays+' days ago':''}
@@ -623,30 +627,30 @@ function buildCard(d, ln) {
 
   // Use real computed numbers
   const pt = ln ? { entry:ln.t.entry, take_profit:ln.t.tp, stop_loss:ln.t.sl, risk_reward:ln.t.rr, upside_pct:ln.t.upside, downside_pct:ln.t.downside } : null;
-  const ta = ln ? { rsi:ln.live.rsi, rsi_signal:ln.t.rsiSig, macd_bullish:ln.live.macdBull, macd_note:ln.t.macdNote, ma50:ln.live.ma50, ma100:ln.live.ma100, ma200:ln.live.ma200, price_vs_ma50:ln.live.vs50||'N/A', price_vs_ma200:ln.live.vs200||'N/A', support:ln.live.sup, resistance:ln.live.res, volume_vs_avg:ln.t.volLabel, volume_note:ln.t.volStr, ta_overall:ln.t.taOverall, trend:ln.t.trend } : null;
+  const ta = ln ? { rsi:ln.live.rsi, rsi_signal:ln.t.rsiSig, macd_bullish:ln.live.macdBull, macd_note:ln.t.macdNote, ma13:ln.live.ma13, ma100:ln.live.ma100, ma200:ln.live.ma200, price_vs_ma13:ln.live.vs13||'N/A', price_vs_ma200:ln.live.vs200||'N/A', support:ln.live.sup, resistance:ln.live.res, volume_vs_avg:ln.t.volLabel, volume_note:ln.t.volStr, ta_overall:ln.t.taOverall, trend:ln.t.trend } : null;
 
   // MA crossover section
   let crossH = '';
-  if (ln?.live.ma50 && ln?.live.ma100) {
+  if (ln?.live.ma13 && ln?.live.ma100) {
     const live = ln.live;
-    const crossIcon  = live.crossType==='bull' ? '▲ Golden Cross (Bullish)' : live.crossType==='bear' ? '▼ Death Cross (Bearish)' : '─ No Recent Crossover';
+    const crossIcon  = live.crossType==='bull' ? '▲ Golden Cross — MA13 crossed above MA100' : live.crossType==='bear' ? '▼ Death Cross — MA13 crossed below MA100' : '─ No Recent MA13/MA100 Crossover';
     const crossClass = live.crossType==='bull' ? 'bull' : live.crossType==='bear' ? 'bear' : 'none';
     const crossNote  = live.crossDays !== null ? ` — ${live.crossDays} trading days ago` : '';
-    const ma50vs100  = live.ma50 && live.ma100 ? (live.ma50>live.ma100?'Above':'Below') : 'N/A';
-    const ma50vs100col = live.ma50 && live.ma100 ? (live.ma50>live.ma100?'#34d399':'#f87171') : '#94a3b8';
+    const ma50vs100  = live.ma13 && live.ma100 ? (live.ma13>live.ma100?'Above':'Below') : 'N/A';
+    const ma50vs100col = live.ma13 && live.ma100 ? (live.ma13>live.ma100?'#34d399':'#f87171') : '#94a3b8';
 
     // Build mini chart (price + MA50 + MA100 over last 60 days)
     const canvasId = 'cv-cross-' + Date.now();
-    crossH = `<div class="cs"><div class="cl tt" data-tip="${TIPS.cross}">📈 MA50 / MA100 Crossover</div>
+    crossH = `<div class="cs"><div class="cl tt" data-tip="${TIPS.cross}">📈 MA13 / MA100 Crossover</div>
       <span class="cross-badge ${crossClass}">${crossIcon}${crossNote}</span>
       <div class="ma-stat-row">
-        <div class="ma-stat"><span class="ma-stat-val" style="color:#f59e0b">$${Number(live.ma50).toFixed(2)}</span><span class="ma-stat-lbl">MA50</span></div>
+        <div class="ma-stat"><span class="ma-stat-val" style="color:#f59e0b">$${Number(live.ma13).toFixed(2)}</span><span class="ma-stat-lbl">MA13</span></div>
         <div class="ma-stat"><span class="ma-stat-val" style="color:#c4b5fd">$${Number(live.ma100).toFixed(2)}</span><span class="ma-stat-lbl">MA100</span></div>
-        <div class="ma-stat"><span class="ma-stat-val" style="color:${ma50vs100col}">${ma50vs100}</span><span class="ma-stat-lbl">MA50 vs MA100</span></div>
+        <div class="ma-stat"><span class="ma-stat-val" style="color:${ma50vs100col}">${ma50vs100}</span><span class="ma-stat-lbl">MA13 vs MA100</span></div>
       </div>
       <canvas id="${canvasId}" height="70" style="width:100%;height:70px;display:block;margin-top:8px;border-radius:6px;background:var(--bg2);"></canvas>
       <div class="ma-legend-row">
-        <span><span class="ma-dot" style="background:#f59e0b"></span>MA50</span>
+        <span><span class="ma-dot" style="background:#f59e0b"></span>MA13</span>
         <span><span class="ma-dot" style="background:#c4b5fd"></span>MA100</span>
         <span><span class="ma-dot" style="background:rgba(100,116,139,.5)"></span>Price</span>
       </div>
@@ -659,12 +663,12 @@ function buildCard(d, ln) {
       cv.width = cv.offsetWidth || 300;
       const closes = live.calcCloses;
       const slice  = closes.slice(-60);
-      const ma50s  = [], ma100s = [];
-      for (let i = 49; i < closes.length; i++) ma50s.push(closes.slice(i-49,i+1).reduce((a,b)=>a+b)/50);
+      const ma13s  = [], ma100s = [];
+      for (let i = 12; i < closes.length; i++) ma13s.push(closes.slice(i-12,i+1).reduce((a,b)=>a+b)/13);
       for (let i = 99; i < closes.length; i++) ma100s.push(closes.slice(i-99,i+1).reduce((a,b)=>a+b)/100);
-      const s50  = ma50s.slice(-60);
+      const s13  = ma13s.slice(-60);
       const s100 = ma100s.slice(-60);
-      const all  = [...slice, ...s50, ...s100].filter(Boolean);
+      const all  = [...slice, ...s13, ...s100].filter(Boolean);
       if (!all.length) return;
       const mn = Math.min(...all), mx = Math.max(...all), rng = mx-mn||1;
       const W=cv.width, H=70, pad=6;
@@ -678,9 +682,9 @@ function buildCard(d, ln) {
       // Price
       ctx.beginPath();ctx.strokeStyle='rgba(100,116,139,.4)';ctx.lineWidth=1;
       slice.forEach((v,i)=>i===0?ctx.moveTo(tx(i,slice.length),ty(v)):ctx.lineTo(tx(i,slice.length),ty(v)));ctx.stroke();
-      // MA50
+      // MA13
       ctx.beginPath();ctx.strokeStyle='#f59e0b';ctx.lineWidth=1.5;
-      s50.forEach((v,i)=>i===0?ctx.moveTo(tx(i,s50.length),ty(v)):ctx.lineTo(tx(i,s50.length),ty(v)));ctx.stroke();
+      s13.forEach((v,i)=>i===0?ctx.moveTo(tx(i,s13.length),ty(v)):ctx.lineTo(tx(i,s13.length),ty(v)));ctx.stroke();
       // MA100
       ctx.beginPath();ctx.strokeStyle='#c4b5fd';ctx.lineWidth=1.5;
       s100.forEach((v,i)=>i===0?ctx.moveTo(tx(i,s100.length),ty(v)):ctx.lineTo(tx(i,s100.length),ty(v)));ctx.stroke();
@@ -717,7 +721,7 @@ function buildCard(d, ln) {
     </div>
     <div style="margin-top:7px"><div class="cl" style="margin-bottom:4px">Moving Averages</div>
     <div class="mapills">
-      <span class="mapill ${ta.price_vs_ma50==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma50}">MA50 ${ta.ma50?'$'+Number(ta.ma50).toFixed(2):'N/A'} (${esc(ta.price_vs_ma50||'?')})</span>
+      <span class="mapill ${ta.price_vs_ma13==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma13}">MA13 ${ta.ma13?'$'+Number(ta.ma13).toFixed(2):'N/A'} (${esc(ta.price_vs_ma13||'?')})</span>
       ${ta.ma100?`<span class="mapill ${ln.live.vs100==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma100}">MA100 $${Number(ta.ma100).toFixed(2)} (${esc(ln.live.vs100||'?')})</span>`:''}
       <span class="mapill ${ta.price_vs_ma200==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma200}">MA200 ${ta.ma200?'$'+Number(ta.ma200).toFixed(2):'N/A'} (${esc(ta.price_vs_ma200||'?')})</span>
     </div></div>

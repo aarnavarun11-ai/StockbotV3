@@ -154,6 +154,43 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
 /* Tooltip */
 .tt{position:relative;}
 .tt:active::after,.tt:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1e293b;color:#e2e8f0;font-family:var(--sans);font-size:12px;line-height:1.5;padding:8px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.15);white-space:normal;width:200px;z-index:9999;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+/* Index tab */
+#index-panel{display:none;flex:1;flex-direction:column;overflow:hidden;}
+#index-panel.active{display:flex;}
+#index-search-bar{padding:10px 12px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;display:flex;gap:8px;}
+#index-search{flex:1;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;}
+#index-search:focus{border-color:var(--accent);}
+#index-search::placeholder{color:var(--muted);}
+#index-select{padding:9px 10px;border-radius:9px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:var(--mono);font-size:11px;outline:none;cursor:pointer;}
+#index-list{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px;}
+#index-list::-webkit-scrollbar{width:3px;}
+#index-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.idx-card{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;overflow:hidden;transition:border-color .15s;}
+.idx-card:hover{border-color:var(--accent);}
+.idx-header{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;}
+.idx-rank{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:22px;}
+.idx-name{flex:1;}
+.idx-company{font-size:13px;font-weight:600;color:var(--text);display:block;}
+.idx-ticker{font-family:var(--mono);font-size:10px;color:var(--muted);}
+.idx-price{text-align:right;}
+.idx-price-val{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);display:block;}
+.idx-chg{font-family:var(--mono);font-size:11px;}
+.idx-chg.up{color:var(--green);}.idx-chg.dn{color:var(--red);}
+.idx-arrow{font-size:12px;color:var(--muted);transition:transform .2s;}
+.idx-arrow.open{transform:rotate(90deg);}
+.idx-expand{display:none;padding:0 12px 12px;}
+.idx-expand.open{display:block;}
+.idx-loading{font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 0;}
+.idx-sector{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px;}
+.idx-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px;}
+.idx-stat{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px;text-align:center;}
+.idx-stat-val{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text);display:block;}
+.idx-stat-lbl{font-size:9px;color:var(--muted);}
+.idx-analyze-btn{width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;margin-top:2px;}
+.idx-analyze-btn:active{opacity:.85;}
+.idx-count{font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px 12px;flex-shrink:0;}
+
+/* Typing */
 /* Typing */
 .typing{display:flex;gap:5px;padding:7px 0;align-items:center;}
 .typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite;}
@@ -263,6 +300,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
   <button class="hdr-btn hdr-btn-settings" onclick="openSettings()">⚙️</button>
 </div>
 
+<div id="chat-panel-wrap">
 <!-- CONTROL BAR -->
 <div id="control-bar">
   <!-- Market row -->
@@ -295,12 +333,35 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
   </div>
 </div>
 
+</div><!-- end chat-panel-wrap -->
+<!-- INDEX PANEL -->
+<div id="index-panel">
+  <div id="index-search-bar">
+    <select id="index-select" onchange="loadIndex(this.value)">
+      <option value="SP500">🇺🇸 S&amp;P 500</option>
+      <option value="DOW30">🇺🇸 Dow Jones 30</option>
+      <option value="NASDAQ">🇺🇸 NASDAQ 100</option>
+      <option value="NIFTY50">🇮🇳 NIFTY 50</option>
+      <option value="SENSEX">🇮🇳 SENSEX 30</option>
+    </select>
+    <input id="index-search" type="text" placeholder="Filter companies..." oninput="filterIndex(this.value)"/>
+  </div>
+  <div class="idx-count" id="idx-count"></div>
+  <div id="index-list"><div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:20px;text-align:center;">Select an index above to see all companies</div></div>
+</div>
+
 <!-- INPUT -->
 <div id="inp-row">
   <input id="txt" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="characters" placeholder="Type ticker e.g. NVDA..."/>
   <button id="sbtn">SEND</button>
 </div>
 <div class="disc">⚠ Educational only. Not financial advice.</div>
+
+<!-- BOTTOM NAV -->
+<div id="bottom-nav" style="display:flex;background:var(--bg3);border-top:1px solid var(--border2);padding-bottom:var(--safe-bottom);flex-shrink:0;">
+  <button id="nav-chat" style="flex:1;padding:10px 4px 8px;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--accent);background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid var(--accent);" onclick="switchMainTab('chat')"><span style="font-size:18px">💬</span>Analysis</button>
+  <button id="nav-index" style="flex:1;padding:10px 4px 8px;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;border-top:2px solid transparent;" onclick="switchMainTab('index')"><span style="font-size:18px">📊</span>Indexes</button>
+</div>
 
 </div><!-- end #app -->
 
@@ -383,6 +444,293 @@ function updateKeyStatus() {
     el.textContent = '⚠ No saved key — using default (may be expired)';
     el.className = 'key-status bad';
   }
+}
+
+/* ═══════════════ MAIN TAB SWITCHING ═══════════════ */
+function switchMainTab(tab) {
+  // Show/hide panels
+  document.getElementById('chat-panel-wrap').style.display = tab==='chat' ? 'contents' : 'none';
+  document.getElementById('index-panel').classList.toggle('active', tab==='index');
+  // Update bottom nav
+  const navChat  = document.getElementById('nav-chat');
+  const navIndex = document.getElementById('nav-index');
+  navChat.style.color  = tab==='chat'  ? 'var(--accent)' : 'var(--muted)';
+  navIndex.style.color = tab==='index' ? 'var(--accent)' : 'var(--muted)';
+  navChat.style.borderTopColor  = tab==='chat'  ? 'var(--accent)' : 'transparent';
+  navIndex.style.borderTopColor = tab==='index' ? 'var(--accent)' : 'transparent';
+}
+
+/* ═══════════════ INDEX DATA ═══════════════ */
+const INDEXES = {
+  SP500: [
+    {rank:1,ticker:'AAPL',name:'Apple Inc.',sector:'Technology'},
+    {rank:2,ticker:'MSFT',name:'Microsoft Corp.',sector:'Technology'},
+    {rank:3,ticker:'NVDA',name:'NVIDIA Corp.',sector:'Technology'},
+    {rank:4,ticker:'AMZN',name:'Amazon.com Inc.',sector:'Consumer Disc.'},
+    {rank:5,ticker:'GOOGL',name:'Alphabet Inc.',sector:'Communication'},
+    {rank:6,ticker:'META',name:'Meta Platforms',sector:'Communication'},
+    {rank:7,ticker:'TSLA',name:'Tesla Inc.',sector:'Consumer Disc.'},
+    {rank:8,ticker:'BRK-B',name:'Berkshire Hathaway',sector:'Financials'},
+    {rank:9,ticker:'LLY',name:'Eli Lilly & Co.',sector:'Healthcare'},
+    {rank:10,ticker:'JPM',name:'JPMorgan Chase',sector:'Financials'},
+    {rank:11,ticker:'V',name:'Visa Inc.',sector:'Financials'},
+    {rank:12,ticker:'UNH',name:'UnitedHealth Group',sector:'Healthcare'},
+    {rank:13,ticker:'XOM',name:'Exxon Mobil Corp.',sector:'Energy'},
+    {rank:14,ticker:'MA',name:'Mastercard Inc.',sector:'Financials'},
+    {rank:15,ticker:'AVGO',name:'Broadcom Inc.',sector:'Technology'},
+    {rank:16,ticker:'JNJ',name:'Johnson & Johnson',sector:'Healthcare'},
+    {rank:17,ticker:'HD',name:'Home Depot Inc.',sector:'Consumer Disc.'},
+    {rank:18,ticker:'PG',name:'Procter & Gamble',sector:'Consumer Staples'},
+    {rank:19,ticker:'COST',name:'Costco Wholesale',sector:'Consumer Staples'},
+    {rank:20,ticker:'ABBV',name:'AbbVie Inc.',sector:'Healthcare'},
+    {rank:21,ticker:'MRK',name:'Merck & Co.',sector:'Healthcare'},
+    {rank:22,ticker:'CVX',name:'Chevron Corp.',sector:'Energy'},
+    {rank:23,ticker:'CRM',name:'Salesforce Inc.',sector:'Technology'},
+    {rank:24,ticker:'NFLX',name:'Netflix Inc.',sector:'Communication'},
+    {rank:25,ticker:'AMD',name:'Advanced Micro Devices',sector:'Technology'},
+    {rank:26,ticker:'KO',name:'Coca-Cola Co.',sector:'Consumer Staples'},
+    {rank:27,ticker:'BAC',name:'Bank of America',sector:'Financials'},
+    {rank:28,ticker:'PEP',name:'PepsiCo Inc.',sector:'Consumer Staples'},
+    {rank:29,ticker:'WMT',name:'Walmart Inc.',sector:'Consumer Staples'},
+    {rank:30,ticker:'MCD',name:'McDonald's Corp.',sector:'Consumer Disc.'},
+  ],
+  DOW30: [
+    {rank:1,ticker:'AAPL',name:'Apple Inc.',sector:'Technology'},
+    {rank:2,ticker:'MSFT',name:'Microsoft Corp.',sector:'Technology'},
+    {rank:3,ticker:'GS',name:'Goldman Sachs',sector:'Financials'},
+    {rank:4,ticker:'UNH',name:'UnitedHealth Group',sector:'Healthcare'},
+    {rank:5,ticker:'HD',name:'Home Depot',sector:'Consumer Disc.'},
+    {rank:6,ticker:'AMGN',name:'Amgen Inc.',sector:'Healthcare'},
+    {rank:7,ticker:'MCD',name:'McDonald's Corp.',sector:'Consumer Disc.'},
+    {rank:8,ticker:'CAT',name:'Caterpillar Inc.',sector:'Industrials'},
+    {rank:9,ticker:'V',name:'Visa Inc.',sector:'Financials'},
+    {rank:10,ticker:'JPM',name:'JPMorgan Chase',sector:'Financials'},
+    {rank:11,ticker:'IBM',name:'IBM Corp.',sector:'Technology'},
+    {rank:12,ticker:'BA',name:'Boeing Co.',sector:'Industrials'},
+    {rank:13,ticker:'CRM',name:'Salesforce Inc.',sector:'Technology'},
+    {rank:14,ticker:'HON',name:'Honeywell International',sector:'Industrials'},
+    {rank:15,ticker:'NVDA',name:'NVIDIA Corp.',sector:'Technology'},
+    {rank:16,ticker:'JNJ',name:'Johnson & Johnson',sector:'Healthcare'},
+    {rank:17,ticker:'PG',name:'Procter & Gamble',sector:'Consumer Staples'},
+    {rank:18,ticker:'TRV',name:'Travelers Companies',sector:'Financials'},
+    {rank:19,ticker:'AXP',name:'American Express',sector:'Financials'},
+    {rank:20,ticker:'WMT',name:'Walmart Inc.',sector:'Consumer Staples'},
+    {rank:21,ticker:'DIS',name:'Walt Disney Co.',sector:'Communication'},
+    {rank:22,ticker:'NKE',name:'Nike Inc.',sector:'Consumer Disc.'},
+    {rank:23,ticker:'MMM',name:'3M Company',sector:'Industrials'},
+    {rank:24,ticker:'CVX',name:'Chevron Corp.',sector:'Energy'},
+    {rank:25,ticker:'KO',name:'Coca-Cola Co.',sector:'Consumer Staples'},
+    {rank:26,ticker:'DOW',name:'Dow Inc.',sector:'Materials'},
+    {rank:27,ticker:'MRK',name:'Merck & Co.',sector:'Healthcare'},
+    {rank:28,ticker:'INTC',name:'Intel Corp.',sector:'Technology'},
+    {rank:29,ticker:'WBA',name:'Walgreens Boots Alliance',sector:'Consumer Staples'},
+    {rank:30,ticker:'VZ',name:'Verizon Communications',sector:'Communication'},
+  ],
+  NASDAQ: [
+    {rank:1,ticker:'AAPL',name:'Apple Inc.',sector:'Technology'},
+    {rank:2,ticker:'MSFT',name:'Microsoft Corp.',sector:'Technology'},
+    {rank:3,ticker:'NVDA',name:'NVIDIA Corp.',sector:'Technology'},
+    {rank:4,ticker:'AMZN',name:'Amazon.com Inc.',sector:'Consumer Disc.'},
+    {rank:5,ticker:'META',name:'Meta Platforms',sector:'Communication'},
+    {rank:6,ticker:'GOOGL',name:'Alphabet Inc. (A)',sector:'Communication'},
+    {rank:7,ticker:'GOOG',name:'Alphabet Inc. (C)',sector:'Communication'},
+    {rank:8,ticker:'TSLA',name:'Tesla Inc.',sector:'Consumer Disc.'},
+    {rank:9,ticker:'AVGO',name:'Broadcom Inc.',sector:'Technology'},
+    {rank:10,ticker:'COST',name:'Costco Wholesale',sector:'Consumer Staples'},
+    {rank:11,ticker:'NFLX',name:'Netflix Inc.',sector:'Communication'},
+    {rank:12,ticker:'AMD',name:'Advanced Micro Devices',sector:'Technology'},
+    {rank:13,ticker:'LIN',name:'Linde plc',sector:'Materials'},
+    {rank:14,ticker:'QCOM',name:'Qualcomm Inc.',sector:'Technology'},
+    {rank:15,ticker:'INTU',name:'Intuit Inc.',sector:'Technology'},
+    {rank:16,ticker:'AMGN',name:'Amgen Inc.',sector:'Healthcare'},
+    {rank:17,ticker:'PEP',name:'PepsiCo Inc.',sector:'Consumer Staples'},
+    {rank:18,ticker:'CSCO',name:'Cisco Systems',sector:'Technology'},
+    {rank:19,ticker:'TXN',name:'Texas Instruments',sector:'Technology'},
+    {rank:20,ticker:'ISRG',name:'Intuitive Surgical',sector:'Healthcare'},
+  ],
+  NIFTY50: [
+    {rank:1,ticker:'RELIANCE.NS',name:'Reliance Industries',sector:'Energy'},
+    {rank:2,ticker:'TCS.NS',name:'Tata Consultancy Services',sector:'IT'},
+    {rank:3,ticker:'HDFCBANK.NS',name:'HDFC Bank',sector:'Financials'},
+    {rank:4,ticker:'BHARTIARTL.NS',name:'Bharti Airtel',sector:'Telecom'},
+    {rank:5,ticker:'ICICIBANK.NS',name:'ICICI Bank',sector:'Financials'},
+    {rank:6,ticker:'INFY.NS',name:'Infosys',sector:'IT'},
+    {rank:7,ticker:'SBIN.NS',name:'State Bank of India',sector:'Financials'},
+    {rank:8,ticker:'HINDUNILVR.NS',name:'Hindustan Unilever',sector:'Consumer'},
+    {rank:9,ticker:'ITC.NS',name:'ITC Limited',sector:'Consumer'},
+    {rank:10,ticker:'LT.NS',name:'Larsen & Toubro',sector:'Industrials'},
+    {rank:11,ticker:'BAJFINANCE.NS',name:'Bajaj Finance',sector:'Financials'},
+    {rank:12,ticker:'HCLTECH.NS',name:'HCL Technologies',sector:'IT'},
+    {rank:13,ticker:'MARUTI.NS',name:'Maruti Suzuki',sector:'Auto'},
+    {rank:14,ticker:'SUNPHARMA.NS',name:'Sun Pharmaceutical',sector:'Healthcare'},
+    {rank:15,ticker:'TATAMOTORS.NS',name:'Tata Motors',sector:'Auto'},
+    {rank:16,ticker:'WIPRO.NS',name:'Wipro Limited',sector:'IT'},
+    {rank:17,ticker:'ADANIENT.NS',name:'Adani Enterprises',sector:'Conglomerate'},
+    {rank:18,ticker:'KOTAKBANK.NS',name:'Kotak Mahindra Bank',sector:'Financials'},
+    {rank:19,ticker:'NTPC.NS',name:'NTPC Limited',sector:'Utilities'},
+    {rank:20,ticker:'ONGC.NS',name:'Oil & Natural Gas Corp.',sector:'Energy'},
+    {rank:21,ticker:'M&M.NS',name:'Mahindra & Mahindra',sector:'Auto'},
+    {rank:22,ticker:'POWERGRID.NS',name:'Power Grid Corp.',sector:'Utilities'},
+    {rank:23,ticker:'AXISBANK.NS',name:'Axis Bank',sector:'Financials'},
+    {rank:24,ticker:'ULTRACEMCO.NS',name:'UltraTech Cement',sector:'Materials'},
+    {rank:25,ticker:'TITAN.NS',name:'Titan Company',sector:'Consumer'},
+  ],
+  SENSEX: [
+    {rank:1,ticker:'RELIANCE.NS',name:'Reliance Industries',sector:'Energy'},
+    {rank:2,ticker:'TCS.NS',name:'Tata Consultancy Services',sector:'IT'},
+    {rank:3,ticker:'HDFCBANK.NS',name:'HDFC Bank',sector:'Financials'},
+    {rank:4,ticker:'BHARTIARTL.NS',name:'Bharti Airtel',sector:'Telecom'},
+    {rank:5,ticker:'ICICIBANK.NS',name:'ICICI Bank',sector:'Financials'},
+    {rank:6,ticker:'INFY.NS',name:'Infosys',sector:'IT'},
+    {rank:7,ticker:'SBIN.NS',name:'State Bank of India',sector:'Financials'},
+    {rank:8,ticker:'HINDUNILVR.NS',name:'Hindustan Unilever',sector:'Consumer'},
+    {rank:9,ticker:'ITC.NS',name:'ITC Limited',sector:'Consumer'},
+    {rank:10,ticker:'LT.NS',name:'Larsen & Toubro',sector:'Industrials'},
+    {rank:11,ticker:'BAJFINANCE.NS',name:'Bajaj Finance',sector:'Financials'},
+    {rank:12,ticker:'HCLTECH.NS',name:'HCL Technologies',sector:'IT'},
+    {rank:13,ticker:'MARUTI.NS',name:'Maruti Suzuki',sector:'Auto'},
+    {rank:14,ticker:'SUNPHARMA.NS',name:'Sun Pharmaceutical',sector:'Healthcare'},
+    {rank:15,ticker:'TATAMOTORS.NS',name:'Tata Motors',sector:'Auto'},
+    {rank:16,ticker:'WIPRO.NS',name:'Wipro Limited',sector:'IT'},
+    {rank:17,ticker:'KOTAKBANK.NS',name:'Kotak Mahindra Bank',sector:'Financials'},
+    {rank:18,ticker:'NTPC.NS',name:'NTPC Limited',sector:'Utilities'},
+    {rank:19,ticker:'ONGC.NS',name:'Oil & Natural Gas Corp.',sector:'Energy'},
+    {rank:20,ticker:'AXISBANK.NS',name:'Axis Bank',sector:'Financials'},
+    {rank:21,ticker:'NESTLEIND.NS',name:'Nestle India',sector:'Consumer'},
+    {rank:22,ticker:'ASIANPAINT.NS',name:'Asian Paints',sector:'Materials'},
+    {rank:23,ticker:'M&M.NS',name:'Mahindra & Mahindra',sector:'Auto'},
+    {rank:24,ticker:'POWERGRID.NS',name:'Power Grid Corp.',sector:'Utilities'},
+    {rank:25,ticker:'TITAN.NS',name:'Titan Company',sector:'Consumer'},
+    {rank:26,ticker:'BAJAJFINSV.NS',name:'Bajaj Finserv',sector:'Financials'},
+    {rank:27,ticker:'JSWSTEEL.NS',name:'JSW Steel',sector:'Materials'},
+    {rank:28,ticker:'TATACONSUM.NS',name:'Tata Consumer Products',sector:'Consumer'},
+    {rank:29,ticker:'TATASTEEL.NS',name:'Tata Steel',sector:'Materials'},
+    {rank:30,ticker:'ULTRACEMCO.NS',name:'UltraTech Cement',sector:'Materials'},
+  ],
+};
+
+let currentIndexData = [];
+let currentIndexKey  = '';
+const priceCache = {};
+
+async function fetchQuickPrice(ticker) {
+  if (priceCache[ticker]) return priceCache[ticker];
+  try {
+    const yurl = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`);
+    const proxies = [
+      `https://api.allorigins.win/get?url=${yurl}`,
+      `https://corsproxy.io/?${yurl}`,
+    ];
+    for (const p of proxies) {
+      try {
+        const r = await fetch(p, { signal: AbortSignal.timeout(5000) });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const d = j.contents ? JSON.parse(j.contents) : j;
+        const meta = d?.chart?.result?.[0]?.meta;
+        if (!meta) continue;
+        const price = meta.regularMarketPrice;
+        const prev  = meta.regularMarketPreviousClose || price;
+        const chgPct = +((price-prev)/prev*100).toFixed(2);
+        const currency = meta.currency || 'USD';
+        const result = { price: +price.toFixed(2), chgPct, currency };
+        priceCache[ticker] = result;
+        return result;
+      } catch { continue; }
+    }
+  } catch {}
+  return null;
+}
+
+function loadIndex(key) {
+  currentIndexKey = key;
+  currentIndexData = INDEXES[key] || [];
+  renderIndex(currentIndexData);
+}
+
+function filterIndex(query) {
+  if (!query.trim()) { renderIndex(currentIndexData); return; }
+  const q = query.toLowerCase();
+  const filtered = currentIndexData.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    s.ticker.toLowerCase().includes(q) ||
+    s.sector.toLowerCase().includes(q)
+  );
+  renderIndex(filtered);
+}
+
+function renderIndex(stocks) {
+  const list = document.getElementById('index-list');
+  const count = document.getElementById('idx-count');
+  count.textContent = `${stocks.length} companies`;
+  if (!stocks.length) { list.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:20px;text-align:center;">No companies match</div>'; return; }
+  list.innerHTML = stocks.map(s => `
+    <div class="idx-card" id="icard-${s.ticker.replace(/[^A-Z0-9]/g,'_')}">
+      <div class="idx-header" onclick="toggleIdx('${s.ticker}')">
+        <span class="idx-rank">#${s.rank}</span>
+        <span class="idx-name">
+          <span class="idx-company">${s.name}</span>
+          <span class="idx-ticker">${s.ticker.replace('.NS','')}</span>
+        </span>
+        <span class="idx-price" id="iprice-${s.ticker.replace(/[^A-Z0-9]/g,'_')}">
+          <span class="idx-price-val" style="color:var(--muted)">--</span>
+          <span class="idx-chg">Loading...</span>
+        </span>
+        <span class="idx-arrow" id="iarrow-${s.ticker.replace(/[^A-Z0-9]/g,'_')}">›</span>
+      </div>
+      <div class="idx-expand" id="iexp-${s.ticker.replace(/[^A-Z0-9]/g,'_')}">
+        <div class="idx-sector">Sector: ${s.sector}</div>
+        <div class="idx-loading" id="iload-${s.ticker.replace(/[^A-Z0-9]/g,'_')}">Tap to expand for full analysis</div>
+        <button class="idx-analyze-btn" onclick="analyzeFromIndex('${s.ticker}','${s.name}')">📡 Full Analysis</button>
+      </div>
+    </div>
+  `).join('');
+
+  // Load prices in batches to avoid hammering the API
+  loadPricesBatch(stocks);
+}
+
+async function loadPricesBatch(stocks) {
+  for (let i = 0; i < stocks.length; i++) {
+    const s = stocks[i];
+    const id = s.ticker.replace(/[^A-Z0-9]/g,'_');
+    const el = document.getElementById('iprice-'+id);
+    if (!el) continue;
+    const data = await fetchQuickPrice(s.ticker);
+    if (data) {
+      const sym = data.currency === 'INR' ? '₹' : '$';
+      const updown = data.chgPct >= 0;
+      el.innerHTML = `
+        <span class="idx-price-val">${sym}${data.price.toFixed(2)}</span>
+        <span class="idx-chg ${updown?'up':'dn'}">${updown?'+':''}${data.chgPct}%</span>
+      `;
+    } else {
+      el.innerHTML = '<span class="idx-price-val" style="color:var(--muted)">N/A</span>';
+    }
+    // Small delay between requests to avoid rate limits
+    await new Promise(r => setTimeout(r, 120));
+  }
+}
+
+function toggleIdx(ticker) {
+  const id = ticker.replace(/[^A-Z0-9]/g,'_');
+  const exp   = document.getElementById('iexp-'+id);
+  const arrow = document.getElementById('iarrow-'+id);
+  const isOpen = exp.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.idx-expand').forEach(e => e.classList.remove('open'));
+  document.querySelectorAll('.idx-arrow').forEach(a => a.classList.remove('open'));
+  if (!isOpen) {
+    exp.classList.add('open');
+    arrow.classList.add('open');
+  }
+}
+
+function analyzeFromIndex(ticker, name) {
+  // Switch to chat tab and run analysis
+  switchMainTab('chat');
+  document.getElementById('txt').value = ticker;
+  send();
 }
 
 /* ═══════════════ MARKET + TIMEFRAME ═══════════════ */
@@ -503,6 +851,8 @@ async function getLiveData(ticker) {
     vs200: ma200 ? (price>ma200 ?'Above':'Below') : null,
     sup, res, volRatio,
     mktCap: meta.marketCap ? (meta.marketCap/1e9).toFixed(1)+'B' : null,
+    currency: meta.currency || 'USD',
+    currency: meta.currency || 'USD',
     crossType, crossDays, calcCloses, tfLabel,
   };
 }
@@ -644,8 +994,8 @@ function buildCard(d, ln) {
     crossH = `<div class="cs"><div class="cl tt" data-tip="${TIPS.cross}">📈 MA13 / MA100 Crossover</div>
       <span class="cross-badge ${crossClass}">${crossIcon}${crossNote}</span>
       <div class="ma-stat-row">
-        <div class="ma-stat"><span class="ma-stat-val" style="color:#f59e0b">$${Number(live.ma13).toFixed(2)}</span><span class="ma-stat-lbl">MA13</span></div>
-        <div class="ma-stat"><span class="ma-stat-val" style="color:#c4b5fd">$${Number(live.ma100).toFixed(2)}</span><span class="ma-stat-lbl">MA100</span></div>
+        <div class="ma-stat"><span class="ma-stat-val" style="color:#f59e0b">${live.currency==='INR'?'₹':'$'}${Number(live.ma13).toFixed(2)}</span><span class="ma-stat-lbl">MA13</span></div>
+        <div class="ma-stat"><span class="ma-stat-val" style="color:#c4b5fd">${live.currency==='INR'?'₹':'$'}${Number(live.ma100).toFixed(2)}</span><span class="ma-stat-lbl">MA100</span></div>
         <div class="ma-stat"><span class="ma-stat-val" style="color:${ma50vs100col}">${ma50vs100}</span><span class="ma-stat-lbl">MA13 vs MA100</span></div>
       </div>
       <canvas id="${canvasId}" height="70" style="width:100%;height:70px;display:block;margin-top:8px;border-radius:6px;background:var(--bg2);"></canvas>
@@ -696,9 +1046,9 @@ function buildCard(d, ln) {
   if (pt) {
     ptH = `<div class="cs"><div class="cl tt" data-tip="Calculated from real support &amp; resistance levels">🎯 Price Targets</div>
     <div class="tgrid">
-      <div class="tbox tt" data-tip="${TIPS.entry}"><span class="tv e">$${Number(pt.entry||0).toFixed(2)}</span><div class="tlbl">Entry</div></div>
-      <div class="tbox tt" data-tip="${TIPS.tp}"><span class="tv t">$${Number(pt.take_profit||0).toFixed(2)}</span><div class="tlbl">Take Profit</div></div>
-      <div class="tbox tt" data-tip="${TIPS.sl}"><span class="tv s">$${Number(pt.stop_loss||0).toFixed(2)}</span><div class="tlbl">Stop Loss</div></div>
+      <div class="tbox tt" data-tip="${TIPS.entry}"><span class="tv e">${ln?.live.currency==='INR'?'₹':'$'}${Number(pt.entry||0).toFixed(2)}</span><div class="tlbl">Entry</div></div>
+      <div class="tbox tt" data-tip="${TIPS.tp}"><span class="tv t">${ln?.live.currency==='INR'?'₹':'$'}${Number(pt.take_profit||0).toFixed(2)}</span><div class="tlbl">Take Profit</div></div>
+      <div class="tbox tt" data-tip="${TIPS.sl}"><span class="tv s">${ln?.live.currency==='INR'?'₹':'$'}${Number(pt.stop_loss||0).toFixed(2)}</span><div class="tlbl">Stop Loss</div></div>
     </div>
     <span class="rrbadge tt" data-tip="${TIPS.rr}">⚖ R/R ${esc(pt.risk_reward||'N/A')}</span>
     ${pt.upside_pct?`<span class="rrbadge" style="color:#34d399;border-color:rgba(16,185,129,.3)">▲ ${esc(pt.upside_pct)}</span>`:''}
@@ -721,14 +1071,14 @@ function buildCard(d, ln) {
     </div>
     <div style="margin-top:7px"><div class="cl" style="margin-bottom:4px">Moving Averages</div>
     <div class="mapills">
-      <span class="mapill ${ta.price_vs_ma13==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma13}">MA13 ${ta.ma13?'$'+Number(ta.ma13).toFixed(2):'N/A'} (${esc(ta.price_vs_ma13||'?')})</span>
-      ${ta.ma100?`<span class="mapill ${ln.live.vs100==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma100}">MA100 $${Number(ta.ma100).toFixed(2)} (${esc(ln.live.vs100||'?')})</span>`:''}
-      <span class="mapill ${ta.price_vs_ma200==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma200}">MA200 ${ta.ma200?'$'+Number(ta.ma200).toFixed(2):'N/A'} (${esc(ta.price_vs_ma200||'?')})</span>
+      <span class="mapill ${ta.price_vs_ma13==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma13}">MA13 ${ta.ma13?(ln?.live.currency==='INR'?'₹':'$')+Number(ta.ma13).toFixed(2):'N/A'} (${esc(ta.price_vs_ma13||'?')})</span>
+      ${ta.ma100?`<span class="mapill ${ln.live.vs100==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma100}">MA100 ${ln.live.currency==='INR'?'₹':'$'}${Number(ta.ma100).toFixed(2)} (${esc(ln.live.vs100||'?')})</span>`:''}
+      <span class="mapill ${ta.price_vs_ma200==='Above'?'ab':'bl'} tt" data-tip="${TIPS.ma200}">MA200 ${ta.ma200?(ln?.live.currency==='INR'?'₹':'$')+Number(ta.ma200).toFixed(2):'N/A'} (${esc(ta.price_vs_ma200||'?')})</span>
     </div></div>
     <div style="margin-top:7px"><div class="cl" style="margin-bottom:4px">Support &amp; Resistance</div>
     <div class="lvrow">
-      <div class="lvbox tt" data-tip="${TIPS.sup}"><div class="lvv sup">$${ta.support!=null?Number(ta.support).toFixed(2):'N/A'}</div><div class="lvlbl">▲ Support</div></div>
-      <div class="lvbox tt" data-tip="${TIPS.res}"><div class="lvv res">$${ta.resistance!=null?Number(ta.resistance).toFixed(2):'N/A'}</div><div class="lvlbl">▼ Resistance</div></div>
+      <div class="lvbox tt" data-tip="${TIPS.sup}"><div class="lvv sup">${ln?.live.currency==='INR'?'₹':'$'}${ta.support!=null?Number(ta.support).toFixed(2):'N/A'}</div><div class="lvlbl">▲ Support</div></div>
+      <div class="lvbox tt" data-tip="${TIPS.res}"><div class="lvv res">${ln?.live.currency==='INR'?'₹':'$'}${ta.resistance!=null?Number(ta.resistance).toFixed(2):'N/A'}</div><div class="lvlbl">▼ Resistance</div></div>
     </div></div>
     <div style="margin-top:7px"><span class="tabadge ${tac(ta.ta_overall||'Neutral')}">${esc(ta.ta_overall||'Neutral')}</span></div>
     <a href="https://finance.yahoo.com/chart/${esc(d.ticker||'')}" target="_blank" style="display:block;margin-top:7px;font-family:var(--mono);font-size:10px;color:var(--accent);text-decoration:none;">📊 Open live chart →</a>
@@ -767,7 +1117,7 @@ function buildCard(d, ln) {
   return `<div class="card">
     <div class="cs">
       <div class="live-badge">📡 Live · ${esc(ln?.live.tfLabel||'')}</div>
-      <div class="phero"><span class="pmain">${pn?'$'+pn.toFixed(2):esc(d.price)}</span><span class="${cup?'pup':'pdn'}">${esc(d.price_change)}</span></div>
+      <div class="phero"><span class="pmain">${pn?(ln?.live.currency==='INR'?'₹':'$')+pn.toFixed(2):esc(d.price)}</span><span class="${cup?'pup':'pdn'}">${esc(d.price_change)}</span></div>
       <div class="cl">${esc(d.ticker||'')} — Analysis</div>
       <div style="line-height:1.6;font-size:13.5px">${esc(d.analysis)}</div>
       <span class="sig ${sig.toLowerCase()}">${{BUY:'▲',SELL:'▼',HOLD:'◆'}[sig]||'◆'} ${sig}</span>
@@ -848,6 +1198,7 @@ document.getElementById('txt').addEventListener('keydown', e => { if (e.key === 
 
 /* ═══════════════ INIT ═══════════════ */
 setMarket('us');
+loadIndex('SP500');
 
 /* ═══════════════ PWA ═══════════════ */
 if ('serviceWorker' in navigator) {

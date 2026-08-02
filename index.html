@@ -355,19 +355,26 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
 
   <!-- INDEX PANEL -->
   <div class="panel" id="p-index">
-    <div class="idx-controls">
-      <select class="idx-select" id="idx-select" onchange="loadIndex(this.value)">
-        <option value="SP500">🇺🇸 S&amp;P 500 (Top 30)</option>
+    <div class="idx-controls" style="flex-wrap:wrap;gap:6px;">
+      <select class="idx-select" id="idx-select" style="flex:1;min-width:140px;">
+        <option value="SP500">🇺🇸 S&amp;P 500</option>
         <option value="DOW30">🇺🇸 Dow Jones 30</option>
-        <option value="NASDAQ">🇺🇸 NASDAQ 100 (Top 20)</option>
-        <option value="NIFTY50">🇮🇳 NIFTY 50 (Top 25)</option>
+        <option value="NASDAQ">🇺🇸 NASDAQ 100</option>
+        <option value="NIFTY50">🇮🇳 NIFTY 50</option>
         <option value="SENSEX">🇮🇳 SENSEX 30</option>
       </select>
-      <input class="idx-filter" type="text" placeholder="Filter..." oninput="filterIdx(this.value)"/>
+      <select class="idx-select" id="idx-filter-select" style="flex:1;min-width:110px;">
+        <option value="all">All Signals</option>
+        <option value="buy">Buy Only</option>
+        <option value="strong-buy">Strong Buy Only</option>
+        <option value="hold">Hold Only</option>
+        <option value="sell">Sell Only</option>
+      </select>
+      <button id="idx-run-btn" onclick="runIndex()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">▶ Run</button>
     </div>
     <div class="idx-meta">
-      <span id="idx-count">Select an index to load</span>
-      <span class="idx-sort-lbl">↑ Sorted: Strongest Buy</span>
+      <span id="idx-count">Select an index and tap ▶ Run</span>
+      <span class="idx-sort-lbl" id="idx-sort-lbl">↑ Sorted: Strongest Buy</span>
     </div>
     <div id="idx-list">
       <div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:30px;text-align:center;">Select an index above to see all companies sorted by buy strength</div>
@@ -564,8 +571,8 @@ function setTF(i,r){
 async function fetchYahoo(ticker,interval,range){
   const url=encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`);
   const proxies=[
+    `https://corsproxy.io/?${url}`,        // fastest
     `https://api.allorigins.win/get?url=${url}`,
-    `https://corsproxy.io/?${url}`,
     `https://api.codetabs.com/v1/proxy?quest=${url}`,
   ];
   for(const p of proxies){
@@ -777,7 +784,7 @@ const idxScores={};
 
 async function fetchQuickData(ticker){
   if(priceCache[ticker])return priceCache[ticker];
-  const r=await fetchYahoo(ticker,'1d','1y');
+  const r=await fetchYahoo(ticker,'1d','6mo'); // 6mo is faster than 1y for quick scans
   if(!r)return null;
   const meta=r.meta;
   const closes=(r.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
@@ -818,12 +825,39 @@ async function fetchQuickData(ticker){
   return result;
 }
 
-function loadIndex(key){
+function runIndex(){
+  const key=document.getElementById('idx-select').value;
+  const btn=document.getElementById('idx-run-btn');
+  btn.disabled=true; btn.textContent='Loading...';
   idxData=IDX[key]||[];
   idxFiltered=[...idxData];
-  document.getElementById('idx-count').textContent=`Loading ${idxData.length} companies...`;
+  document.getElementById('idx-count').textContent=`Fetching ${idxData.length} stocks in parallel...`;
+  // Reset price cache for fresh data
+  idxData.forEach(s=>delete priceCache[s.t]);
   renderIdxSkeleton(idxFiltered);
-  loadIdxPrices(idxFiltered);
+  loadIdxPrices(idxFiltered).then(()=>{
+    btn.disabled=false; btn.textContent='▶ Run';
+    applyIdxFilter();
+  });
+}
+
+function loadIndex(key){ /* kept for compatibility */ }
+
+function applyIdxFilter(){
+  const f=document.getElementById('idx-filter-select').value;
+  const cards=Array.from(document.querySelectorAll('.ic'));
+  cards.forEach(card=>{
+    const sig=card.querySelector('.ic-signal');
+    if(!sig||f==='all'){card.style.display='';return;}
+    const txt=sig.textContent.toLowerCase();
+    if(f==='strong-buy')card.style.display=txt.includes('strong buy')?'':'none';
+    else if(f==='buy')card.style.display=(txt.includes('buy')&&!txt.includes('strong'))?'':'none';
+    else if(f==='hold')card.style.display=txt.includes('hold')?'':'none';
+    else if(f==='sell')card.style.display=txt.includes('sell')?'':'none';
+    else card.style.display='';
+  });
+  const vis=cards.filter(c=>c.style.display!=='none').length;
+  document.getElementById('idx-count').textContent=`${vis} companies shown`;
 }
 
 function renderIdxSkeleton(stocks){
@@ -841,43 +875,37 @@ function renderIdxSkeleton(stocks){
       <div class="ic-body" id="icb-${id}">
         <div class="ic-sector">Sector: ${s.s}</div>
         <div class="ic-stats" id="icst-${id}"><div class="ic-stat"><span class="ic-stat-v">--</span><span class="ic-stat-l">RSI</span></div><div class="ic-stat"><span class="ic-stat-v">--</span><span class="ic-stat-l">MA13</span></div><div class="ic-stat"><span class="ic-stat-v">--</span><span class="ic-stat-l">MACD</span></div></div>
-        <button class="ic-analyze" onclick="analyzeIdx('${s.t}')">📡 Full Analysis</button>
+        <button class="ic-analyze" onclick="analyzeIdx('${s.t}')">📡 Full Analysis →</button>
       </div>
     </div>`;
   }).join('');
 }
 
+function updateIdxCard(id, data){
+  const pEl=document.getElementById('icp-'+id);
+  const sEl=document.getElementById('ics-'+id);
+  const stEl=document.getElementById('icst-'+id);
+  if(!data){if(sEl){sEl.textContent='N/A';sEl.className='ic-signal hold';}return;}
+  if(pEl){const up=data.chgPct>=0;pEl.innerHTML=`<span class="ic-pv">${data.sym}${data.price.toFixed(2)}</span><span class="ic-pc ${up?'up':'dn'}">${up?'+':''}${data.chgPct}%</span>`;}
+  if(sEl){const sigClass=data.sigStr.includes('Buy')?'buy':data.sigStr.includes('Sell')?'sell':'hold';sEl.textContent=data.sigStr;sEl.className='ic-signal '+sigClass;}
+  if(stEl){stEl.innerHTML=`<div class="ic-stat"><span class="ic-stat-v" style="color:${rc(data.rsiVal)}">${data.rsiVal}</span><span class="ic-stat-l">RSI</span></div><div class="ic-stat"><span class="ic-stat-v" style="color:${data.ma13v&&data.price>data.ma13v?'#34d399':'#f87171'}">${data.ma13v?data.sym+data.ma13v.toFixed(2):'N/A'}</span><span class="ic-stat-l">MA13</span></div><div class="ic-stat"><span class="ic-stat-v" style="color:${data.macdBull?'#34d399':'#f87171'}">${data.macdBull?'▲ Bull':'▼ Bear'}</span><span class="ic-stat-l">MACD</span></div>`;}
+}
+
 async function loadIdxPrices(stocks){
-  const results=[];
-  for(let i=0;i<stocks.length;i++){
-    const s=stocks[i];
-    const id=s.t.replace(/[^A-Z0-9]/g,'_');
-    const data=await fetchQuickData(s.t);
-    if(data){
-      results.push({...s,data,idx:i});
-      idxScores[s.t]=data.score;
-      // Update price in DOM
-      const pEl=document.getElementById('icp-'+id);
-      const sEl=document.getElementById('ics-'+id);
-      const stEl=document.getElementById('icst-'+id);
-      if(pEl){
-        const up=data.chgPct>=0;
-        pEl.innerHTML=`<span class="ic-pv">${data.sym}${data.price.toFixed(2)}</span><span class="ic-pc ${up?'up':'dn'}">${up?'+':''}${data.chgPct}%</span>`;
-      }
-      if(sEl){
-        const sc2=data.sigStr.toLowerCase().replace(' ','-').replace('strong-buy','buy').replace('strong-sell','sell');
-        const sigClass=data.sigStr.includes('Buy')?'buy':data.sigStr.includes('Sell')?'sell':'hold';
-        sEl.textContent=data.sigStr;sEl.className='ic-signal '+sigClass;
-      }
-      if(stEl){
-        stEl.innerHTML=`<div class="ic-stat"><span class="ic-stat-v" style="color:${rc(data.rsiVal)}">${data.rsiVal}</span><span class="ic-stat-l">RSI</span></div><div class="ic-stat"><span class="ic-stat-v" style="color:${data.ma13v&&data.price>data.ma13v?'#34d399':'#f87171'}">${data.ma13v?data.sym+data.ma13v.toFixed(2):'N/A'}</span><span class="ic-stat-l">MA13</span></div><div class="ic-stat"><span class="ic-stat-v" style="color:${data.macdBull?'#34d399':'#f87171'}">${data.macdBull?'▲ Bull':'▼ Bear'}</span><span class="ic-stat-l">MACD</span></div>`;
-      }
-    }
-    // Small delay
-    await new Promise(r=>setTimeout(r,100));
-    document.getElementById('idx-count').textContent=`${i+1}/${stocks.length} loaded — sorting by buy strength...`;
-    // Re-sort and re-render every 5 stocks
-    if((i+1)%5===0||i===stocks.length-1) sortAndRerender();
+  const BATCH=4; // fetch 4 in parallel
+  let done=0;
+  for(let i=0;i<stocks.length;i+=BATCH){
+    const batch=stocks.slice(i,i+BATCH);
+    await Promise.all(batch.map(async s=>{
+      const id=s.t.replace(/[^A-Z0-9]/g,'_');
+      const data=await fetchQuickData(s.t);
+      if(data)idxScores[s.t]=data.score;
+      updateIdxCard(id,data);
+      done++;
+    }));
+    document.getElementById('idx-count').textContent=`${done}/${stocks.length} loaded...`;
+    sortAndRerender();
+    await new Promise(r=>setTimeout(r,50)); // tiny pause between batches
   }
   document.getElementById('idx-count').textContent=`${stocks.length} companies — sorted by buy strength`;
 }
@@ -987,6 +1015,8 @@ function recapAnalyze(ticker){
 
 /* ════ INIT ════ */
 setMarket('us');
+// Filter dropdown listener
+document.getElementById('idx-filter-select').addEventListener('change', applyIdxFilter);
 
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 let ip;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();ip=e;const b=document.createElement('button');b.textContent='📲 Install App';b.style.cssText='position:fixed;bottom:80px;right:16px;z-index:9998;padding:11px 16px;background:#3b82f6;color:#fff;border:none;border-radius:11px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,.5);';b.onclick=async()=>{if(!ip)return;ip.prompt();const{outcome}=await ip.userChoice;if(outcome==='accepted')b.remove();ip=null;};document.body.appendChild(b);});

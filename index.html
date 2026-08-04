@@ -398,6 +398,23 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
     </div>
   </div>
 
+  <!-- CROSSOVERS PANEL -->
+  <div class="panel" id="p-cross">
+    <div class="recap-header">
+      <h2>⚡ MA13 / MA100 Crossovers</h2>
+      <div class="sub" id="cross-date">Stocks that crossed today</div>
+    </div>
+    <div class="recap-controls">
+      <button class="recap-mkt-btn active" id="cmkt-us" onclick="setCrossMkt('us')">🇺🇸 US</button>
+      <button class="recap-mkt-btn" id="cmkt-in" onclick="setCrossMkt('india')">🇮🇳 India</button>
+      <button class="run-recap-btn" id="run-cross-btn" onclick="runCrossovers()">⚡ Scan</button>
+    </div>
+    <div class="recap-date" id="cross-progress"></div>
+    <div id="cross-list">
+      <div class="recap-status">Tap "⚡ Scan" to find stocks where MA13 crossed MA100 today</div>
+    </div>
+  </div>
+
 </div><!-- end panels -->
 
 <!-- BOTTOM NAV -->
@@ -409,7 +426,10 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
     <span class="bnav-icon">📊</span>Indexes
   </button>
   <button class="bnav-btn" id="nav-recap" onclick="showPanel('recap')">
-    <span class="bnav-icon">📅</span>Daily Recap
+    <span class="bnav-icon">📅</span>Recap
+  </button>
+  <button class="bnav-btn" id="nav-cross" onclick="showPanel('cross')">
+    <span class="bnav-icon">⚡</span>Crossovers
   </button>
 </div>
 
@@ -720,7 +740,7 @@ function buildCard(d,ln){
   if(pt){ptH=`<div class="cs"><div class="cl">🎯 Price Targets</div><div class="tgrid"><div class="tbox tt" data-tip="Best price to buy — near support"><span class="tv e">${sym}${Number(pt.entry||0).toFixed(2)}</span><div class="tlbl">Entry</div></div><div class="tbox tt" data-tip="Target sell price near resistance"><span class="tv t">${sym}${Number(pt.take_profit||0).toFixed(2)}</span><div class="tlbl">Take Profit</div></div><div class="tbox tt" data-tip="Exit price to limit loss to ~5%"><span class="tv s">${sym}${Number(pt.stop_loss||0).toFixed(2)}</span><div class="tlbl">Stop Loss</div></div></div><span class="rrbadge tt" data-tip="Risk/Reward. 1:2 = risk $1 to make $2">⚖ R/R ${esc(pt.risk_reward||'N/A')}</span>${pt.upside_pct?`<span class="rrbadge" style="color:#34d399;border-color:rgba(16,185,129,.3)">▲ ${esc(pt.upside_pct)}</span>`:''} ${pt.downside_pct?`<span class="rrbadge" style="color:#f87171;border-color:rgba(239,68,68,.3)">▼ ${esc(pt.downside_pct)}</span>`:''}</div>`;}
   if(ln?.live.ma13&&ln?.live.ma100){
     const live=ln.live,t=ln.t;
-    const ci=live.crossType==='bull'?'▲ Golden Cross — MA13 crossed above MA100':live.crossType==='bear'?'▼ Death Cross — MA13 crossed below MA100':'─ No Recent MA13/MA100 Crossover';
+    const ci=live.crossType==='bull'?'▲ Golden Cross — MA13 above MA100 (BULLISH — price likely going UP)':live.crossType==='bear'?'▼ Death Cross — MA13 below MA100 (BEARISH — price likely going DOWN immediately)':'─ No Recent MA13/MA100 Crossover';
     const cc2=live.crossType==='bull'?'bull':live.crossType==='bear'?'bear':'none';
     const cn=live.crossDays!==null?` (${live.crossDays} days ago)`:'';
     const m13v100=live.ma13&&live.ma100?(live.ma13>live.ma100?'#34d399':'#f87171'):'#94a3b8';
@@ -1008,6 +1028,149 @@ async function runRecap(){
 }
 
 function recapAnalyze(ticker){
+  document.getElementById('txt').value=ticker;
+  showPanel('chat');
+  send();
+}
+
+/* ════ CROSSOVERS ════ */
+const CROSS_US    = ['NVDA','AAPL','TSLA','MSFT','META','AMZN','GOOGL','AMD','NFLX','JPM','V','XOM','LLY','AVGO','CRM','BAC','KO','PEP','WMT','DIS','INTC','QCOM','COST','MRK','JNJ','HD','MA','UNH','CVX','PG','IBM','GS','CAT','HON','BA','NKE','ABBV','TXN','ADBE','ISRG'];
+const CROSS_INDIA = ['RELIANCE.NS','TCS.NS','INFY.NS','HDFCBANK.NS','ICICIBANK.NS','WIPRO.NS','TATAMOTORS.NS','SBIN.NS','BAJFINANCE.NS','ITC.NS','BHARTIARTL.NS','HINDUNILVR.NS','LT.NS','HCLTECH.NS','MARUTI.NS','SUNPHARMA.NS','KOTAKBANK.NS','NTPC.NS','ONGC.NS','AXISBANK.NS','TITAN.NS','ULTRACEMCO.NS','BAJAJFINSV.NS','NESTLEIND.NS','ASIANPAINT.NS'];
+
+let crossMarket = 'us', crossRunning = false;
+
+function setCrossMkt(m){
+  crossMarket=m;
+  document.getElementById('cmkt-us').classList.toggle('active',m==='us');
+  document.getElementById('cmkt-in').classList.toggle('active',m==='india');
+}
+
+async function detectCrossover(ticker){
+  // Need enough history to detect a crossover TODAY vs YESTERDAY
+  const r = await fetchYahoo(ticker,'1d','1y');
+  if(!r)return null;
+  const meta=r.meta;
+  const closes=(r.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
+  if(closes.length<102)return null;
+  const currency=meta.currency||'USD';
+  const sym=currency==='INR'?'₹':'$';
+  const price=meta.regularMarketPrice||closes[closes.length-1];
+  const prev=meta.regularMarketPreviousClose||closes[closes.length-2]||price;
+  const chgPct=+((price-prev)/prev*100).toFixed(2);
+
+  // Calculate MA13 and MA100 for TODAY and YESTERDAY
+  const len=closes.length;
+  const ma13Today  = closes.slice(-13).reduce((a,b)=>a+b)/13;
+  const ma100Today = closes.slice(-100).reduce((a,b)=>a+b)/100;
+  const ma13Yest   = closes.slice(-14,-1).reduce((a,b)=>a+b)/13;
+  const ma100Yest  = closes.slice(-101,-1).reduce((a,b)=>a+b)/100;
+
+  // Detect if crossover happened TODAY (yesterday they were on opposite sides)
+  const goldenCross = ma13Yest <= ma100Yest && ma13Today > ma100Today; // MA13 crossed ABOVE MA100
+  const deathCross  = ma13Yest >= ma100Yest && ma13Today < ma100Today; // MA13 crossed BELOW MA100
+
+  if(!goldenCross && !deathCross)return null; // No crossover today
+
+  // Also check how close they are (almost crossing = interesting too)
+  const gap = Math.abs(ma13Today - ma100Today);
+  const gapPct = (gap / price * 100).toFixed(2);
+
+  return {
+    ticker, price:+price.toFixed(2), chgPct, currency, sym,
+    ma13:+ma13Today.toFixed(2), ma100:+ma100Today.toFixed(2),
+    ma13Yest:+ma13Yest.toFixed(2), ma100Yest:+ma100Yest.toFixed(2),
+    type: goldenCross ? 'golden' : 'death',
+    gapPct,
+  };
+}
+
+async function runCrossovers(){
+  if(crossRunning)return;
+  crossRunning=true;
+  const btn=document.getElementById('run-cross-btn');
+  btn.disabled=true; btn.textContent='Scanning...';
+  const prog=document.getElementById('cross-progress');
+  const list=document.getElementById('cross-list');
+  list.innerHTML='<div class="recap-status">Scanning for MA13/MA100 crossovers today...</div>';
+  const tickers=crossMarket==='us'?CROSS_US:CROSS_INDIA;
+  const golden=[], death=[], nearMiss=[];
+  const BATCH=4;
+  let done=0;
+  for(let i=0;i<tickers.length;i+=BATCH){
+    const batch=tickers.slice(i,i+BATCH);
+    await Promise.all(batch.map(async ticker=>{
+      const result=await detectCrossover(ticker);
+      done++;
+      if(result){
+        if(result.type==='golden')golden.push(result);
+        else death.push(result);
+      }
+    }));
+    prog.textContent=`Scanned ${done}/${tickers.length} stocks...`;
+    await new Promise(r=>setTimeout(r,80));
+  }
+
+  const now=new Date();
+  document.getElementById('cross-date').textContent=`${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${tickers.length} stocks scanned`;
+  prog.textContent=`Found ${golden.length} Golden Cross + ${death.length} Death Cross`;
+
+  if(!golden.length && !death.length){
+    list.innerHTML=`<div class="recap-status">No MA13/MA100 crossovers detected today across ${tickers.length} stocks.<br><br><span style="font-size:11px;color:var(--muted)">Crossovers are rare events — check back tomorrow or try a different market.</span></div>`;
+    crossRunning=false; btn.disabled=false; btn.textContent='⚡ Scan';
+    return;
+  }
+
+  function crossCard(r, rank){
+    const isGolden=r.type==='golden';
+    const up=r.chgPct>=0;
+    return `<div style="background:var(--bg2);border:1px solid ${isGolden?'rgba(16,185,129,.3)':'rgba(239,68,68,.3)'};border-radius:10px;padding:12px 13px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);">${r.ticker.replace('.NS','')}</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;background:${isGolden?'rgba(16,185,129,.15)':'rgba(239,68,68,.15)'};color:${isGolden?'#34d399':'#f87171'};border:1px solid ${isGolden?'rgba(16,185,129,.3)':'rgba(239,68,68,.3)'};">${isGolden?'▲ GOLDEN CROSS':'▼ DEATH CROSS'}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--text);">${r.sym}${r.price}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:${up?'var(--green)':'var(--red)'};">${up?'+':''}${r.chgPct}%</span>
+      </div>
+      <div style="font-size:12px;color:${isGolden?'#a7f3d0':'#fecaca'};margin-bottom:8px;line-height:1.5;">
+        ${isGolden
+          ? '📈 MA13 just crossed ABOVE MA100 today — historically bullish signal. Price likely to continue upward.'
+          : '📉 MA13 just crossed BELOW MA100 today — bearish signal. Price may drop immediately.'}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:8px;">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px;text-align:center;">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#f59e0b;display:block;">${r.sym}${r.ma13}</span>
+          <span style="font-size:9px;color:var(--muted);">MA13 Today</span>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px;text-align:center;">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#c4b5fd;display:block;">${r.sym}${r.ma100}</span>
+          <span style="font-size:9px;color:var(--muted);">MA100 Today</span>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px;text-align:center;">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#94a3b8;display:block;">${r.sym}${r.ma13Yest}</span>
+          <span style="font-size:9px;color:var(--muted);">MA13 Yest.</span>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px;text-align:center;">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#94a3b8;display:block;">${r.sym}${r.ma100Yest}</span>
+          <span style="font-size:9px;color:var(--muted);">MA100 Yest.</span>
+        </div>
+      </div>
+      <button onclick="crossAnalyze('${r.ticker}')" style="width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">📡 Full Analysis</button>
+    </div>`;
+  }
+
+  let html='';
+  if(golden.length){
+    html+=`<div style="font-family:var(--mono);font-size:11px;color:#34d399;padding:6px 2px;font-weight:600;">▲ GOLDEN CROSSES TODAY (${golden.length}) — Potential BUY signals</div>`;
+    html+=golden.map((r,i)=>crossCard(r,i+1)).join('');
+  }
+  if(death.length){
+    html+=`<div style="font-family:var(--mono);font-size:11px;color:#f87171;padding:${golden.length?'12px':'6px'} 2px 6px;font-weight:600;">▼ DEATH CROSSES TODAY (${death.length}) — Potential SELL signals</div>`;
+    html+=death.map((r,i)=>crossCard(r,i+1)).join('');
+  }
+  list.innerHTML=html;
+  crossRunning=false; btn.disabled=false; btn.textContent='⚡ Scan';
+}
+
+function crossAnalyze(ticker){
   document.getElementById('txt').value=ticker;
   showPanel('chat');
   send();

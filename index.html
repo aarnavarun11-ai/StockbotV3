@@ -372,6 +372,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
       </select>
       <button id="idx-run-btn" onclick="runIndex()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">▶ Run</button>
     </div>
+    <div id="sector-chips" style="display:flex;gap:5px;padding:6px 10px;border-bottom:1px solid var(--border);overflow-x:auto;background:var(--bg);flex-shrink:0;"></div>
     <div class="idx-meta">
       <span id="idx-count">Select an index and tap ▶ Run</span>
       <span class="idx-sort-lbl" id="idx-sort-lbl">↑ Sorted: Strongest Buy</span>
@@ -415,6 +416,30 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
     </div>
   </div>
 
+  <!-- CUSTOM INDEX PANEL -->
+  <div class="panel" id="p-custom">
+    <div class="recap-header">
+      <h2>⭐ My Index</h2>
+      <div class="sub">Build your own watchlist and run analysis on it</div>
+    </div>
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="custom-add-input" type="text" placeholder="Add ticker e.g. NVDA or RELIANCE.NS" autocomplete="off" autocorrect="off" autocapitalize="characters"
+          style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);outline:none;"/>
+        <button onclick="customAddTicker()" style="padding:0 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">ADD</button>
+      </div>
+      <div id="custom-chips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:28px;"></div>
+    </div>
+    <div style="display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;">
+      <button onclick="runCustomIndex()" id="run-custom-btn" style="flex:1;padding:8px;background:var(--green);color:#fff;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">▶ Run My Index</button>
+      <button onclick="clearCustomIndex()" style="padding:8px 14px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.2);border-radius:8px;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;">Clear All</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px 12px;flex-shrink:0;" id="custom-progress"></div>
+    <div id="custom-list" style="flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:5px;">
+      <div class="recap-status">Add tickers above and tap ▶ Run My Index to scan them</div>
+    </div>
+  </div>
+
 </div><!-- end panels -->
 
 <!-- BOTTOM NAV -->
@@ -430,6 +455,9 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--sans);backgro
   </button>
   <button class="bnav-btn" id="nav-cross" onclick="showPanel('cross')">
     <span class="bnav-icon">⚡</span>Crossovers
+  </button>
+  <button class="bnav-btn" id="nav-custom" onclick="showPanel('custom')">
+    <span class="bnav-icon">⭐</span>My Index
   </button>
 </div>
 
@@ -588,95 +616,244 @@ function setTF(i,r){
 }
 
 /* ════ LIVE DATA ════ */
-async function fetchYahoo(ticker,interval,range){
-  const url=encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`);
-  const proxies=[
-    `https://corsproxy.io/?${url}`,        // fastest
-    `https://api.allorigins.win/get?url=${url}`,
-    `https://api.codetabs.com/v1/proxy?quest=${url}`,
+// Try multiple Yahoo Finance endpoints + proxies for freshest data
+async function fetchYahoo(ticker, interval, range){
+  const yBase = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}&includePrePost=false&events=div,splits`;
+  const yBase2= `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}&includePrePost=false`;
+  const encoded1 = encodeURIComponent(yBase);
+  const encoded2 = encodeURIComponent(yBase2);
+
+  const sources = [
+    // Direct Yahoo (works in some environments)
+    { url: yBase,  direct: true  },
+    { url: yBase2, direct: true  },
+    // Proxies with query1
+    { url: `https://corsproxy.io/?${encoded1}`,        direct: false },
+    { url: `https://api.allorigins.win/get?url=${encoded1}`, direct: false },
+    { url: `https://corsproxy.io/?${encoded2}`,        direct: false },
+    { url: `https://api.codetabs.com/v1/proxy?quest=${encoded1}`, direct: false },
   ];
-  for(const p of proxies){
-    try{
-      const r=await fetch(p,{signal:AbortSignal.timeout(7000)});
-      if(!r.ok)continue;
-      const j=await r.json();
-      const d=j.contents?JSON.parse(j.contents):j;
-      if(d?.chart?.result?.[0])return d.chart.result[0];
-    }catch{continue;}
+
+  for (const src of sources) {
+    try {
+      const r = await fetch(src.url, { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const d = src.direct ? j : (j.contents ? JSON.parse(j.contents) : j);
+      if (d?.chart?.result?.[0]) return d.chart.result[0];
+    } catch { continue; }
   }
   return null;
 }
 
 async function getLiveData(ticker){
-  const isIndia=ticker.endsWith('.NS');
-  const [tfR,calcR]=await Promise.all([
-    fetchYahoo(ticker,curInterval,curRange),
-    fetchYahoo(ticker,'1d','1y'),
+  // Fetch 2y of daily data for accurate MA200 + selected timeframe view
+  const [calcR, tfR] = await Promise.all([
+    fetchYahoo(ticker,'1d','2y'),          // 2y daily for all indicator calculations
+    curInterval!=='1d' ? fetchYahoo(ticker,curInterval,curRange) : null,
   ]);
-  if(!tfR&&!calcR)return null;
-  const main=tfR||calcR;
-  const meta=main.meta;
-  const tfC=(tfR?.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
-  const calcC=(calcR?.indicators?.quote?.[0]?.close||tfC).filter(v=>v!=null);
-  const vols=(main.indicators?.quote?.[0]?.volume||[]).filter(v=>v!=null);
+  if(!calcR)return null;
+
+  const meta   = calcR.meta;
+  const calcC  = (calcR.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
+  const highs  = (calcR.indicators?.quote?.[0]?.high||[]).filter(v=>v!=null);
+  const lows   = (calcR.indicators?.quote?.[0]?.low||[]).filter(v=>v!=null);
+  const vols   = (calcR.indicators?.quote?.[0]?.volume||[]).filter(v=>v!=null);
+  const tfC    = tfR ? (tfR.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null) : calcC;
   if(calcC.length<14)return null;
-  const price=meta.regularMarketPrice||calcC[calcC.length-1];
-  const prev=meta.regularMarketPreviousClose||meta.chartPreviousClose||calcC[calcC.length-2]||price;
-  const chg=+(price-prev).toFixed(2);
-  const chgPct=+((price-prev)/prev*100).toFixed(2);
-  const currency=meta.currency||'USD';
-  const sym=currency==='INR'?'₹':'$';
-  function ema(a,n){const k=2/(n+1);let e=a[0];for(let i=1;i<a.length;i++)e=a[i]*k+e*(1-k);return e;}
-  function rsi(a,n=14){if(a.length<n+1)return 50;let g=0,l=0;for(let i=a.length-n;i<a.length;i++){const d=a[i]-a[i-1];d>0?g+=d:l+=Math.abs(d);}const rs=(g/n)/((l/n)||.0001);return+(100-(100/(1+rs))).toFixed(1);}
-  function sma(a,n){if(a.length<n)return null;return+(a.slice(-n).reduce((x,y)=>x+y)/n).toFixed(2);}
-  const ma13=sma(calcC,13),ma100=sma(calcC,100),ma200=sma(calcC,200);
-  // Crossover
-  let crossType='none',crossDays=null;
+
+  // Use the MOST recent price from meta (live quote) not just last close
+  const price  = meta.regularMarketPrice || calcC[calcC.length-1];
+  const prev   = meta.regularMarketPreviousClose || meta.chartPreviousClose || calcC[calcC.length-2] || price;
+  const open   = meta.regularMarketOpen || calcC[calcC.length-1];
+  const dayHi  = meta.regularMarketDayHigh || Math.max(...highs.slice(-1));
+  const dayLo  = meta.regularMarketDayLow  || Math.min(...lows.slice(-1));
+  const chg    = +(price-prev).toFixed(2);
+  const chgPct = +((price-prev)/prev*100).toFixed(2);
+  const currency = meta.currency || 'USD';
+  const sym    = currency==='INR'?'₹':'$';
+  const vol52wHi = meta.fiftyTwoWeekHigh;
+  const vol52wLo = meta.fiftyTwoWeekLow;
+
+  // ── Wilder's EMA for accurate RSI ──
+  function wilderRSI(closes, period=14){
+    if(closes.length < period*2) return 50;
+    // First avg gain/loss
+    let gains=0, losses=0;
+    for(let i=1;i<=period;i++){
+      const d=closes[i]-closes[i-1];
+      d>=0?gains+=d:losses+=Math.abs(d);
+    }
+    let avgGain=gains/period, avgLoss=losses/period;
+    // Wilder smoothing
+    for(let i=period+1;i<closes.length;i++){
+      const d=closes[i]-closes[i-1];
+      avgGain=(avgGain*(period-1)+(d>=0?d:0))/period;
+      avgLoss=(avgLoss*(period-1)+(d<0?Math.abs(d):0))/period;
+    }
+    if(avgLoss===0)return 100;
+    const rs=avgGain/avgLoss;
+    return +(100-(100/(1+rs))).toFixed(1);
+  }
+
+  // ── Proper EMA ──
+  function ema(closes, period){
+    if(closes.length<period)return null;
+    const k=2/(period+1);
+    let val=closes.slice(0,period).reduce((a,b)=>a+b)/period;
+    for(let i=period;i<closes.length;i++) val=closes[i]*k+val*(1-k);
+    return val;
+  }
+
+  // ── SMA ──
+  function sma(closes, period){
+    if(closes.length<period)return null;
+    return +(closes.slice(-period).reduce((a,b)=>a+b)/period).toFixed(2);
+  }
+
+  // ── MACD (12,26,9) ──
+  const ema12 = ema(calcC,12), ema26 = ema(calcC,26);
+  const macdLine = ema12 && ema26 ? ema12-ema26 : null;
+  // Signal line = 9-period EMA of MACD
+  const macdHist = calcC.map((_,i,a)=>{
+    if(i<26)return null;
+    const e12=ema(a.slice(0,i+1),12), e26=ema(a.slice(0,i+1),26);
+    return e12&&e26?e12-e26:null;
+  }).filter(v=>v!=null);
+  const sigLine = ema(macdHist.slice(-50),9);
+  const macdBull = macdLine!==null && sigLine!==null ? macdLine>sigLine : false;
+  const macdHistVal = macdLine!==null && sigLine!==null ? +(macdLine-sigLine).toFixed(4) : 0;
+
+  // ── Bollinger Bands (20,2) ──
+  const bbPeriod=20;
+  const bbSma = calcC.length>=bbPeriod ? calcC.slice(-bbPeriod).reduce((a,b)=>a+b)/bbPeriod : null;
+  const bbStd = bbSma ? Math.sqrt(calcC.slice(-bbPeriod).reduce((s,v)=>s+(v-bbSma)**2,0)/bbPeriod) : null;
+  const bbUpper = bbSma ? +(bbSma+2*bbStd).toFixed(2) : null;
+  const bbLower = bbSma ? +(bbSma-2*bbStd).toFixed(2) : null;
+  const bbPos = bbSma&&bbStd ? ((price-bbLower)/(bbUpper-bbLower)*100).toFixed(0)+'%' : null;
+
+  // ── Moving Averages ──
+  const ma13  = sma(calcC,13);
+  const ma50  = sma(calcC,50);
+  const ma100 = sma(calcC,100);
+  const ma200 = calcC.length>=200 ? sma(calcC,200) : null;
+
+  // ── Volume analysis ──
+  const avgVol20  = vols.length>=20  ? vols.slice(-20).reduce((a,b)=>a+b)/20 : null;
+  const avgVol50  = vols.length>=50  ? vols.slice(-50).reduce((a,b)=>a+b)/50 : null;
+  const lastVol   = vols[vols.length-1]||0;
+  const volRatio  = avgVol20 ? +(lastVol/avgVol20).toFixed(1) : 1;
+
+  // ── Support/Resistance — use actual 20d high/low from real OHLC ──
+  const sup20  = lows.length>=20  ? +(Math.min(...lows.slice(-20))).toFixed(2)  : +(Math.min(...calcC.slice(-20))).toFixed(2);
+  const res20  = highs.length>=20 ? +(Math.max(...highs.slice(-20))).toFixed(2) : +(Math.max(...calcC.slice(-20))).toFixed(2);
+  // Stronger S/R from 52-week range
+  const sup52  = vol52wLo ? +vol52wLo.toFixed(2) : sup20;
+  const res52  = vol52wHi ? +vol52wHi.toFixed(2) : res20;
+
+  // ── MA13/MA100 Crossover detection ──
+  let crossType='none', crossDays=null;
   const len=calcC.length;
   for(let i=len-1;i>=101;i--){
-    const s13=calcC.slice(i-12,i+1).reduce((a,b)=>a+b)/13;
-    const s100=calcC.slice(i-99,i+1).reduce((a,b)=>a+b)/100;
-    const s13p=calcC.slice(i-13,i).reduce((a,b)=>a+b)/13;
-    const s100p=calcC.slice(i-100,i).reduce((a,b)=>a+b)/100;
+    const s13  = calcC.slice(i-12,i+1).reduce((a,b)=>a+b)/13;
+    const s100 = calcC.slice(i-99,i+1).reduce((a,b)=>a+b)/100;
+    const s13p = calcC.slice(i-13,i).reduce((a,b)=>a+b)/13;
+    const s100p= calcC.slice(i-100,i).reduce((a,b)=>a+b)/100;
     if(s13p<=s100p&&s13>s100){crossType='bull';crossDays=len-1-i;break;}
     if(s13p>=s100p&&s13<s100){crossType='bear';crossDays=len-1-i;break;}
   }
-  const useC=tfC.length>0?tfC:calcC;
-  const sl=Math.min(20,useC.length);
-  const sup=+(Math.min(...useC.slice(-sl))).toFixed(2);
-  const res2=+(Math.max(...useC.slice(-sl))).toFixed(2);
-  const avgV=vols.slice(-30).reduce((a,b)=>a+b,0)/Math.min(30,vols.length)||1;
-  const volR=+((vols[vols.length-1]||0)/avgV).toFixed(1);
+
   const tfLabel={'1d':'Daily','1wk':'Weekly','1mo':'Monthly'}[curInterval]||'Daily';
-  return{ticker,price:+price.toFixed(2),prev:+prev.toFixed(2),chg,chgPct,currency,sym,
-    rsi:rsi(calcC),macdBull:calcC.length>26?ema(calcC,12)-ema(calcC,26)>0:false,
-    ma13,ma100,ma200,
-    vs13:ma13?(price>ma13?'Above':'Below'):null,
-    vs100:ma100?(price>ma100?'Above':'Below'):null,
-    vs200:ma200?(price>ma200?'Above':'Below'):null,
-    sup,res:res2,volR,mktCap:meta.marketCap?(meta.marketCap/1e9).toFixed(1)+'B':null,
-    crossType,crossDays,calcC,tfLabel};
+  const rsiVal=wilderRSI(calcC);
+
+  return {
+    ticker, price:+price.toFixed(2), prev:+prev.toFixed(2),
+    open:+open.toFixed(2), dayHi:+dayHi.toFixed(2), dayLo:+dayLo.toFixed(2),
+    chg, chgPct, currency, sym,
+    rsi: rsiVal,
+    macdBull, macdHistVal,
+    macdNote: macdBull
+      ? `Bullish — MACD (${macdLine?.toFixed(3)}) above signal (${sigLine?.toFixed(3)})`
+      : `Bearish — MACD (${macdLine?.toFixed(3)}) below signal (${sigLine?.toFixed(3)})`,
+    ma13, ma50, ma100, ma200,
+    vs13:  ma13  ? (price>ma13  ?'Above':'Below') : null,
+    vs50:  ma50  ? (price>ma50  ?'Above':'Below') : null,
+    vs100: ma100 ? (price>ma100 ?'Above':'Below') : null,
+    vs200: ma200 ? (price>ma200 ?'Above':'Below') : null,
+    sup:sup20, res:res20, sup52, res52,
+    bbUpper, bbLower, bbPos,
+    volR: volRatio,
+    mktCap: meta.marketCap ? (meta.marketCap/1e9).toFixed(1)+'B' : null,
+    vol52wHi: vol52wHi ? +vol52wHi.toFixed(2) : null,
+    vol52wLo: vol52wLo ? +vol52wLo.toFixed(2) : null,
+    crossType, crossDays, calcC, tfLabel,
+    dataPoints: calcC.length,
+  };
 }
 
 function computeT(live){
-  const{price,sup,res,rsi:rv,macdBull,vs13,vs100,vs200,volR}=live;
-  const entry=+(price>sup*1.05?price*0.99:price).toFixed(2);
-  const sl=+(entry*0.95).toFixed(2),risk=entry-sl;
-  const minTP=+(entry+risk*2).toFixed(2),tp=+(Math.max(minTP,res)).toFixed(2),reward=tp-entry;
+  const{price,sup,res,sup52,res52,rsi:rv,macdBull,crossType,crossDays,vs13,vs50,vs100,vs200,volR,bbUpper,bbLower,dayLo,dayHi}=live;
+
+  // Score signals (0-8 scale for more granularity)
+  let bullScore=0, bearScore=0;
+
+  // RSI signals
+  if(rv<=30)bullScore+=2;       // oversold = strong buy
+  else if(rv<=45)bullScore+=1;  // slightly oversold
+  else if(rv>=70)bearScore+=2;  // overbought = strong sell
+  else if(rv>=60)bearScore+=1;
+
+  // MACD
+  if(macdBull)bullScore+=1.5; else bearScore+=1.5;
+
+  // MA signals (weighted)
+  if(vs13==='Above')bullScore+=1; else bearScore+=1;
+  if(vs50==='Above')bullScore+=1; else bearScore+=1;
+  if(vs100==='Above')bullScore+=1; else bearScore+=1;
+  if(vs200==='Above')bullScore+=1.5; else bearScore+=1.5;
+
+  // Crossover (most powerful signal)
+  if(crossType==='bull'&&crossDays<=5)bullScore+=3;   // fresh golden cross
+  else if(crossType==='bear'&&crossDays<=5)bearScore+=3; // fresh death cross
+  else if(crossType==='bull')bullScore+=1;
+  else if(crossType==='bear')bearScore+=1;
+
+  // Volume confirmation
+  if(volR>=2)bullScore+=0.5;
+
+  // Bollinger band position
+  if(bbLower&&price<=bbLower*1.01)bullScore+=1; // at or below lower band
+  if(bbUpper&&price>=bbUpper*0.99)bearScore+=1; // at or above upper band
+
+  const netScore=bullScore-bearScore;
+  const taOverall=netScore>=4?'Strong Buy':netScore>=2?'Buy':netScore>=-1?'Neutral':netScore>=-3?'Sell':'Strong Sell';
+  const numericScore=Math.min(4,Math.max(0,Math.round(bullScore/2)));
+
+  // Entry: use support as ideal entry, or current price if extended
+  const idealEntry=sup&&price>sup*1.02?+(sup*1.01).toFixed(2):+price.toFixed(2);
+  const entry=idealEntry;
+  const sl=+(entry*0.95).toFixed(2); // 5% stop loss
+  const risk=entry-sl;
+
+  // Take profit: use resistance, or 2:1 R/R minimum
+  const minTP=+(entry+risk*2).toFixed(2);
+  const tp=+(Math.max(minTP,res||entry*1.10)).toFixed(2);
+  const reward=tp-entry;
   const rr=risk>0?(reward/risk).toFixed(1):'2.0';
-  let bull=0;
-  if(rv>=30&&rv<=60)bull++;if(macdBull)bull++;if(vs13==='Above')bull++;if(vs200==='Above')bull++;
+
+  const trend=vs200==='Above'?(vs50==='Above'?'Uptrend':vs13==='Above'?'Mixed-Bullish':'Mixed'):'Downtrend';
+  const rsiSig=rv>=70?'Overbought (>70)':rv<=30?'Oversold (<30)':rv>=60?'Mildly Overbought':rv<=40?'Mildly Oversold':'Neutral';
+  const volLabel=volR>=2?'High (2x+)':volR>=1.5?'Above Average':volR<0.7?'Below Average':'Average';
+
   return{
-    entry,tp,sl,rr:`1:${rr}`,
+    entry, tp, sl,
+    rr:`1:${rr}`,
     upside:`+${+(reward/entry*100).toFixed(1)}%`,
     downside:`-${+(risk/entry*100).toFixed(1)}%`,
-    taOverall:['Strong Sell','Sell','Neutral','Buy','Strong Buy'][bull],
-    score:bull, // 0-4 for sorting
-    trend:vs200==='Above'?(vs13==='Above'?'Uptrend':'Mixed'):'Downtrend',
-    rsiSig:rv>=70?'Overbought':rv<=30?'Oversold':'Neutral',
-    macdNote:macdBull?'Positive (bullish)':'Negative (bearish)',
-    volLabel:volR>=1.5?'Above Average':volR<0.7?'Below Average':'Average',
-    volStr:`${volR}x 30-day avg`,
+    taOverall, score:numericScore, netScore,
+    trend, rsiSig, volLabel,
+    volStr:`${volR}x 20-day avg`,
+    macdNote:live.macdNote||( macdBull?'Positive (bullish)':'Negative (bearish)'),
   };
 }
 
@@ -698,7 +875,45 @@ async function callAI(msg){
       setTlbl(`Computing indicators @ ${live.sym}${live.price}...`);
       const t=computeT(live);
       ln={live,t};
-      ctx=`\n=== LIVE DATA FOR ${ticker} (${live.tfLabel}) ===\nprice:"${live.price}"\nprice_change:"${live.chgPct>=0?'+':''}${live.chgPct}%"\ncurrency:${live.currency}\nRSI:${live.rsi} (${t.rsiSig})\nMACD:${t.macdNote}\nMA13:${live.ma13?live.sym+live.ma13+' '+live.vs13:'N/A'}\nMA100:${live.ma100?live.sym+live.ma100+' '+live.vs100:'N/A'}\nMA200:${live.ma200?live.sym+live.ma200+' '+live.vs200:'N/A'}\nMA13/MA100 Cross:${live.crossType==='bull'?'Golden Cross (bullish)':live.crossType==='bear'?'Death Cross (bearish)':'None'}${live.crossDays!==null?' '+live.crossDays+'d ago':''}\nSupport:${live.sym}${live.sup}\nResistance:${live.sym}${live.res}\nVolume:${t.volStr}\nEntry:${live.sym}${t.entry} TP:${live.sym}${t.tp} SL:${live.sym}${t.sl} RR:${t.rr}\nTA:${t.taOverall} Trend:${t.trend}\n=== END ===`;
+      ctx=`
+=== LIVE MARKET DATA FOR ${ticker} (${live.tfLabel}) — USE THESE EXACT NUMBERS ===
+Price: ${live.sym}${live.price} (${live.chgPct>=0?'+':''}${live.chgPct}% today)
+Day Range: ${live.sym}${live.dayLo} – ${live.sym}${live.dayHi}
+52-Week Range: ${live.vol52wLo?live.sym+live.vol52wLo:'N/A'} – ${live.vol52wHi?live.sym+live.vol52wHi:'N/A'}
+Market Cap: ${live.mktCap||'N/A'}
+Currency: ${live.currency}
+Data Points: ${live.dataPoints} trading days
+
+TECHNICAL INDICATORS (Wilder RSI, proper EMA-based MACD):
+RSI(14 Wilder): ${live.rsi} → ${t.rsiSig}
+MACD(12,26,9): ${t.macdNote}
+Bollinger Bands: Upper=${live.bbUpper?live.sym+live.bbUpper:'N/A'} Lower=${live.bbLower?live.sym+live.bbLower:'N/A'} Position=${live.bbPos||'N/A'}
+
+MOVING AVERAGES:
+MA13:  ${live.ma13?live.sym+live.ma13+' — price is '+live.vs13:'N/A'}
+MA50:  ${live.ma50?live.sym+live.ma50+' — price is '+live.vs50:'N/A'}
+MA100: ${live.ma100?live.sym+live.ma100+' — price is '+live.vs100:'N/A'}
+MA200: ${live.ma200?live.sym+live.ma200+' — price is '+live.vs200:'N/A'}
+
+MA13/MA100 CROSSOVER: ${live.crossType==='bull'?'⚡ GOLDEN CROSS (MA13 above MA100) — STRONG BULLISH':live.crossType==='bear'?'🔴 DEATH CROSS (MA13 below MA100) — STRONG BEARISH — SELL SIGNAL':'No recent crossover'}${live.crossDays!==null?' — occurred '+live.crossDays+' trading days ago':''}
+
+SUPPORT & RESISTANCE:
+20-day Support: ${live.sym}${live.sup} (recent low)
+20-day Resistance: ${live.sym}${live.res} (recent high)
+
+VOLUME: ${t.volStr} (${t.volLabel})
+
+CALCULATED PRICE TARGETS:
+Entry: ${live.sym}${t.entry}
+Take Profit: ${live.sym}${t.tp} (${t.upside} upside)
+Stop Loss: ${live.sym}${t.sl} (${t.downside} risk)
+Risk/Reward: ${t.rr}
+
+OVERALL SIGNAL: ${t.taOverall} (score: ${t.netScore>=0?'+':''}${t.netScore?.toFixed(1)||0})
+Trend: ${t.trend}
+
+RULES: Use ALL exact numbers above. Death Cross = SELL immediately. Golden Cross = BUY signal.
+=== END LIVE DATA ===`;
     }
   }
   const msgs=trimmed.map((m,i)=>i===trimmed.length-1?{...m,content:m.content+ctx}:m);
@@ -881,10 +1096,12 @@ function applyIdxFilter(){
 }
 
 function renderIdxSkeleton(stocks){
+  buildSectorChips(stocks);
   const list=document.getElementById('idx-list');
   list.innerHTML=stocks.map((s,i)=>{
     const id=s.t.replace(/[^A-Z0-9]/g,'_');
-    return `<div class="ic" id="ic-${id}">
+    const secCode=SECTOR_MAP[s.s]||'other';
+    return `<div class="ic" id="ic-${id}" data-sector="${secCode}">
       <div class="ic-hdr" onclick="toggleIc('${id}')">
         <span class="ic-rank">#${i+1}</span>
         <span class="ic-info"><span class="ic-name">${s.n}</span><span class="ic-sub">${s.t.replace('.NS','')} · ${s.s}</span></span>
@@ -1176,8 +1393,175 @@ function crossAnalyze(ticker){
   send();
 }
 
+/* ════ SECTOR MAPPING ════ */
+const SECTOR_MAP = {
+  'Technology':'tech','IT':'tech','Communication':'comm','Consumer Disc.':'consumer',
+  'Consumer':'consumer','Consumer Staples':'staples','Financials':'finance',
+  'Healthcare':'health','Energy':'energy','Industrials':'industrial',
+  'Materials':'materials','Utilities':'utilities','Telecom':'comm',
+  'Auto':'auto','Real Estate':'realestate',
+};
+const SECTOR_LABELS = {
+  all:'All',tech:'💻 Tech',comm:'📡 Comm',finance:'🏦 Finance',
+  health:'🏥 Health',consumer:'🛍 Consumer',staples:'🛒 Staples',
+  energy:'⛽ Energy',industrial:'🏭 Industrial',materials:'🧱 Materials',
+  utilities:'⚡ Utilities',auto:'🚗 Auto',
+};
+
+let activeSector = 'all';
+
+function buildSectorChips(stocks){
+  // Find which sectors exist in this index
+  const sectors = new Set(['all']);
+  stocks.forEach(s=>{
+    const sec = SECTOR_MAP[s.s] || 'other';
+    sectors.add(sec);
+  });
+  const wrap = document.getElementById('sector-chips');
+  wrap.innerHTML = [...sectors].map(sec=>
+    `<button onclick="setSector('${sec}')" id="sec-${sec}" style="font-size:10px;font-family:var(--mono);padding:4px 10px;border-radius:99px;border:1px solid ${sec===activeSector?'var(--accent)':'var(--border2)'};background:${sec===activeSector?'var(--accent)':'var(--bg)'};color:${sec===activeSector?'#fff':'var(--muted)'};cursor:pointer;white-space:nowrap;flex-shrink:0;">${SECTOR_LABELS[sec]||sec}</button>`
+  ).join('');
+}
+
+function setSector(sec){
+  activeSector = sec;
+  // Update chip styles
+  document.querySelectorAll('#sector-chips button').forEach(b=>{
+    const isActive = b.id === 'sec-'+sec;
+    b.style.background = isActive?'var(--accent)':'var(--bg)';
+    b.style.color = isActive?'#fff':'var(--muted)';
+    b.style.borderColor = isActive?'var(--accent)':'var(--border2)';
+  });
+  applyIdxFilter();
+}
+
+// Patch applyIdxFilter to also handle sector
+const _origApplyFilter = typeof applyIdxFilter === 'function' ? applyIdxFilter : null;
+
+function applyIdxFilter(){
+  const f = document.getElementById('idx-filter-select')?.value || 'all';
+  const cards = Array.from(document.querySelectorAll('.ic'));
+  cards.forEach(card=>{
+    const sig = card.querySelector('.ic-signal');
+    const sectorAttr = card.getAttribute('data-sector') || '';
+    const secOk = activeSector==='all' || sectorAttr===activeSector;
+    let sigOk = true;
+    if(sig && f!=='all'){
+      const txt = sig.textContent.toLowerCase();
+      if(f==='strong-buy') sigOk = txt.includes('strong buy');
+      else if(f==='buy')   sigOk = txt.includes('buy') && !txt.includes('strong');
+      else if(f==='hold')  sigOk = txt.includes('hold');
+      else if(f==='sell')  sigOk = txt.includes('sell');
+    }
+    card.style.display = (secOk && sigOk) ? '' : 'none';
+  });
+  const vis = cards.filter(c=>c.style.display!=='none').length;
+  document.getElementById('idx-count').textContent = `${vis} companies shown`;
+}
+
+/* ════ CUSTOM INDEX ════ */
+let customTickers = JSON.parse(localStorage.getItem('stockai_custom_idx')||'[]');
+
+function renderCustomChips(){
+  const wrap = document.getElementById('custom-chips');
+  if(!customTickers.length){wrap.innerHTML='<span style="font-family:var(--mono);font-size:10px;color:var(--muted);">No tickers added yet</span>';return;}
+  wrap.innerHTML = customTickers.map(t=>
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:11px;padding:3px 8px 3px 10px;border-radius:99px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);">
+      ${t.replace('.NS','')}
+      <button onclick="customRemove('${t}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0;">×</button>
+    </span>`
+  ).join('');
+}
+
+function customAddTicker(){
+  const inp = document.getElementById('custom-add-input');
+  let val = inp.value.trim().toUpperCase().replace(/[^A-Z0-9.\-]/g,'');
+  if(!val){alert('Enter a ticker first');return;}
+  if(customTickers.includes(val)){alert(val+' already in your index');inp.value='';return;}
+  if(customTickers.length>=30){alert('Max 30 tickers');return;}
+  customTickers.push(val);
+  localStorage.setItem('stockai_custom_idx',JSON.stringify(customTickers));
+  renderCustomChips();
+  inp.value='';
+  document.getElementById('custom-list').innerHTML='<div class="recap-status">Tap ▶ Run My Index to scan '+customTickers.length+' stocks</div>';
+}
+
+function customRemove(t){
+  customTickers=customTickers.filter(x=>x!==t);
+  localStorage.setItem('stockai_custom_idx',JSON.stringify(customTickers));
+  renderCustomChips();
+}
+
+function clearCustomIndex(){
+  if(!confirm('Clear all tickers?'))return;
+  customTickers=[];
+  localStorage.setItem('stockai_custom_idx',JSON.stringify(customTickers));
+  renderCustomChips();
+  document.getElementById('custom-list').innerHTML='<div class="recap-status">Tap ▶ Run My Index to scan your stocks</div>';
+}
+
+document.getElementById('custom-add-input').addEventListener('keydown',e=>{if(e.key==='Enter')customAddTicker();});
+
+async function runCustomIndex(){
+  if(!customTickers.length){alert('Add at least one ticker first');return;}
+  const btn=document.getElementById('run-custom-btn');
+  btn.disabled=true;btn.textContent='Scanning...';
+  const prog=document.getElementById('custom-progress');
+  const list=document.getElementById('custom-list');
+  list.innerHTML='<div class="recap-status">Scanning your index...</div>';
+  const results=[];
+  const BATCH=4;
+  let done=0;
+  for(let i=0;i<customTickers.length;i+=BATCH){
+    const batch=customTickers.slice(i,i+BATCH);
+    await Promise.all(batch.map(async ticker=>{
+      const data=await fetchQuickData(ticker);
+      done++;
+      if(data)results.push({ticker,data});
+    }));
+    prog.textContent=`Scanned ${done}/${customTickers.length}...`;
+    await new Promise(r=>setTimeout(r,80));
+  }
+  results.sort((a,b)=>b.data.score-a.data.score);
+  if(!results.length){list.innerHTML='<div class="recap-status">Could not fetch data. Check tickers and connection.</div>';btn.disabled=false;btn.textContent='▶ Run My Index';prog.textContent='';return;}
+  list.innerHTML=results.map((r,i)=>{
+    const d=r.data,up=d.chgPct>=0;
+    const rankClass=i===0?'gold':i===1?'silver':i===2?'bronze':'other';
+    const reasons=[];
+    if(d.rsiVal<40)reasons.push('RSI oversold ('+d.rsiVal+')');
+    if(d.macdBull)reasons.push('MACD bullish');
+    if(d.ma13v&&d.price>d.ma13v)reasons.push('Above MA13');
+    if(d.ma200v&&d.price>d.ma200v)reasons.push('Above MA200');
+    if(d.crossBull)reasons.push('Golden Cross');
+    const sigClass=d.sigStr.includes('Buy')?'#34d399':d.sigStr.includes('Sell')?'#f87171':'#fbbf24';
+    return `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;display:flex;align-items:flex-start;gap:10px;">
+      <div class="recap-rank-badge ${rankClass}">${i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);">${r.ticker.replace('.NS','')}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:3px;">${reasons.length?reasons.join(' · '):'Moderate signals'}</div>
+        <button onclick="customAnalyze('${r.ticker}')" style="margin-top:7px;width:100%;padding:7px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;">📡 Full Analysis</button>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);display:block;">${d.sym}${d.price}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:${up?'var(--green)':'var(--red)'};">${up?'+':''}${d.chgPct}%</span>
+        <span style="display:block;font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,.1);color:${sigClass};margin-top:4px;">${d.sigStr}</span>
+        <span style="display:block;font-family:var(--mono);font-size:10px;color:var(--green);margin-top:2px;">Score: ${d.score}/4</span>
+      </div>
+    </div>`;
+  }).join('');
+  prog.textContent=`${results.length} stocks scanned · sorted by buy strength`;
+  btn.disabled=false;btn.textContent='▶ Run My Index';
+}
+
+function customAnalyze(ticker){
+  document.getElementById('txt').value=ticker;
+  showPanel('chat');
+  send();
+}
+
 /* ════ INIT ════ */
 setMarket('us');
+renderCustomChips();
 // Filter dropdown listener
 document.getElementById('idx-filter-select').addEventListener('change', applyIdxFilter);
 
